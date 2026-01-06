@@ -18,12 +18,17 @@
         .btn-out { background: var(--danger); }
         .btn-audit { background: var(--warning); color: #222; }
         
+        /* Spinner Styles */
+        .spinner { border: 4px solid rgba(0,0,0,0.1); width: 36px; height: 36px; border-radius: 50%; border-left-color: var(--secondary); animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; margin-right: 10px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        #loading-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:3000; color:white; flex-direction:column; justify-content:center; align-items:center; }
+
         .flash-success { animation: flash-green 0.8s; }
         .flash-fail { animation: flash-red 0.8s; }
         @keyframes flash-green { 0% { background-color: #2ecc71; } 100% { background-color: var(--bg); } }
         @keyframes flash-red { 0% { background-color: #e74c3c; } 100% { background-color: var(--bg); } }
 
-        .scan-item { padding: 12px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; transition: all 0.2s; }
+        .scan-item { padding: 12px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
         .tag-info { font-size: 14px; }
         .tag-subtext { font-size: 11px; color: #7f8c8d; display: block; }
         #progress-bar { height: 10px; background: var(--secondary); width: 0%; border-radius: 5px; transition: width 0.3s; }
@@ -32,20 +37,26 @@
 </head>
 <body>
 
+<div id="loading-overlay">
+    <div class="spinner"></div>
+    <div id="loading-msg" style="margin-top:15px; font-weight:bold;">Processing Range...</div>
+</div>
+
 <div class="container">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
         <h2 style="margin: 0;">📦 SnipeScan Pro</h2>
         <div style="display: flex; gap: 15px; align-items: center;">
-            <button id="sound-toggle" onclick="toggleSound()" style="background:none; border:none; font-size: 24px; cursor:pointer;" title="Toggle Sound">🔇</button>
-            <button onclick="toggleDarkMode()" style="background:none; border:none; font-size: 24px; cursor:pointer;" title="Dark Mode">🌙</button>
+            <button id="sound-toggle" onclick="toggleSound()" style="background:none; border:none; font-size: 24px; cursor:pointer;">🔇</button>
+            <button onclick="toggleDarkMode()" style="background:none; border:none; font-size: 24px; cursor:pointer;">🌙</button>
         </div>
     </div>
     
     <div id="reader"></div>
     <div id="status" style="text-align:center; padding:10px; font-size:14px; font-weight:bold; color: var(--secondary);">Connecting...</div>
 
-    <div style="margin-top: 10px; text-align: center;">
-        <button onclick="toggleManualInput()" id="manual-toggle-btn" style="background:none; border:1px solid var(--border); color:var(--text); padding:8px 15px; border-radius:20px; font-size:12px; cursor:pointer;">⌨️ Manual Entry</button>
+    <div style="margin-top: 10px; text-align: center; display: flex; justify-content: center; gap: 10px;">
+        <button onclick="toggleManualInput()" id="manual-toggle-btn" style="background:none; border:1px solid var(--border); color:var(--text); padding:8px 15px; border-radius:20px; font-size:12px; cursor:pointer;">⌨️ Manual</button>
+        <button onclick="toggleRangeMode()" id="range-toggle-btn" style="background:none; border:1px solid var(--border); color:var(--text); padding:8px 15px; border-radius:20px; font-size:12px; cursor:pointer;">🔢 Range Mode: OFF</button>
     </div>
 
     <div id="manual-input-container" class="card" style="display:none; border-style: dashed; padding: 10px; margin-top: 10px;">
@@ -62,7 +73,7 @@
             <option value="location">Assign to: Location</option>
         </select>
         <select id="target-id"></select>
-        <select id="status-id" title="Status Label"></select>
+        <select id="status-id"></select>
         <button onclick="applyGlobalToAll()" style="background: #95a5a6; border:none; color:white; padding:10px; border-radius:8px; width:100%; font-size:12px; margin-top:5px; cursor:pointer;">🔄 Apply to All in Queue</button>
     </div>
 
@@ -78,27 +89,12 @@
 
         <div id="scan-list" style="margin-top:10px; max-height:280px; overflow-y:auto; border:1px solid var(--border); border-radius:8px;"></div>
 
-        <div id="progress-container" style="display:none; margin-top:15px;">
-            <div style="background:var(--border); border-radius:5px;"><div id="progress-bar"></div></div>
-            <div id="progress-text" style="font-size:11px; text-align:center; margin-top:5px;"></div>
-        </div>
-
         <div id="batch-controls" style="display:none;">
             <button class="btn btn-out" onclick="processBatch('OUT')">Process Check-Out</button>
             <button class="btn btn-in" onclick="processBatch('IN')">Process Check-In</button>
             <button class="btn btn-audit" onclick="processBatch('AUDIT')">Submit Official Audit</button>
         </div>
     </div>
-
-    <div class="card" style="background: rgba(0,0,0,0.02); border-style: dashed;">
-        <button onclick="showAuditLogs()" style="background:var(--secondary); color:white; border:none; padding:12px; border-radius:8px; width:100%; cursor:pointer;">📊 View Session History</button>
-    </div>
-</div>
-
-<div id="audit-modal">
-    <h3>Local Session History</h3>
-    <button onclick="document.getElementById('audit-modal').style.display='none'" style="background:var(--danger); color:white; border:none; padding:12px; width:100%; border-radius:8px; cursor:pointer;">Close History</button>
-    <div id="audit-log-content" style="margin-top:20px;"></div>
 </div>
 
 <audio id="beep" src="https://www.soundjay.com/buttons/beep-07.mp3" preload="auto"></audio>
@@ -108,6 +104,7 @@
 
     let scannedQueue = [], users = [], locations = [], statusLabels = [];
     let isScanningLocked = false, soundEnabled = false;
+    let rangeMode = false, rangeStartTag = null;
     const beep = document.getElementById("beep"), statusDiv = document.getElementById("status");
 
     const scanner = new Html5Qrcode("reader");
@@ -115,25 +112,23 @@
 
     function toggleSound() {
         soundEnabled = !soundEnabled;
-        const btn = document.getElementById("sound-toggle");
-        if (soundEnabled) {
-            btn.innerText = "🔊";
-            beep.volume = 0; 
-            beep.play().then(() => { beep.pause(); beep.volume = 1; });
-        } else { btn.innerText = "🔇"; }
+        document.getElementById("sound-toggle").innerText = soundEnabled ? "🔊" : "🔇";
+        if (soundEnabled) { beep.volume = 0; beep.play().then(() => { beep.pause(); beep.volume = 1; }); }
     }
 
     function toggleManualInput() {
         const container = document.getElementById('manual-input-container');
-        const btn = document.getElementById('manual-toggle-btn');
-        if (container.style.display === 'none') {
-            container.style.display = 'block';
-            btn.innerText = "❌ Close Manual";
-            document.getElementById('manual-tag').focus();
-        } else {
-            container.style.display = 'none';
-            btn.innerText = "⌨️ Manual Entry";
-        }
+        container.style.display = container.style.display === 'none' ? 'block' : 'none';
+        if(container.style.display === 'block') document.getElementById('manual-tag').focus();
+    }
+
+    function toggleRangeMode() {
+        rangeMode = !rangeMode;
+        rangeStartTag = null;
+        const btn = document.getElementById('range-toggle-btn');
+        btn.innerText = rangeMode ? "🔢 Range Mode: WAITING..." : "🔢 Range Mode: OFF";
+        btn.style.borderColor = rangeMode ? "var(--secondary)" : "var(--border)";
+        statusDiv.innerText = rangeMode ? "Scan FIRST asset in range" : "Scanner Ready";
     }
 
     async function proxyRequest(endpoint, method = "GET", payload = null) {
@@ -152,48 +147,73 @@
     }
 
     function toggleTargetList() {
-        const type = document.getElementById('target-type').value;
-        const list = (type === 'user') ? users : locations;
+        const list = (document.getElementById('target-type').value === 'user') ? users : locations;
         document.getElementById('target-id').innerHTML = list.map(i => `<option value="${i.id}">${i.name || i.display_name}</option>`).join('');
     }
 
     async function onScanSuccess(tag) {
         if (isScanningLocked) return;
         const cleanTag = tag.toString().toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
+
+        if (rangeMode) {
+            if (!rangeStartTag) {
+                rangeStartTag = cleanTag;
+                document.getElementById('range-toggle-btn').innerText = "🔢 START: " + cleanTag;
+                statusDiv.innerText = "Scan LAST asset in range";
+                if(soundEnabled) beep.play();
+                return;
+            } else {
+                await processRange(rangeStartTag, cleanTag);
+                toggleRangeMode();
+                return;
+            }
+        }
+
         if (scannedQueue.some(i => i.tag === cleanTag)) return;
-
         isScanningLocked = true;
-        statusDiv.innerText = "Checking: " + cleanTag;
-
         try {
             const response = await proxyRequest(`/hardware/bytag/${cleanTag}`);
             let asset = response.id ? response : (response.rows && response.rows.length > 0 ? response.rows[0] : null);
-            if (asset && asset.id) {
-                if (!scannedQueue.some(i => i.tag === cleanTag)) {
-                    processValidAsset(asset, cleanTag);
-                }
-            } else { triggerFail(cleanTag); }
-        } catch (e) { triggerFail(cleanTag); }
-        finally {
-            setTimeout(() => { isScanningLocked = false; statusDiv.innerText = "Scanner Ready"; }, 2000);
-        }
+            if (asset && asset.id) { processValidAsset(asset, cleanTag); } 
+            else { triggerFail(cleanTag); }
+        } finally { setTimeout(() => { isScanningLocked = false; }, 2000); }
     }
 
-    async function addManualTag() {
-        const input = document.getElementById('manual-tag');
-        const tag = input.value.trim().toUpperCase();
-        if (!tag) return;
-        if (scannedQueue.some(i => i.tag === tag)) { alert("Already in list"); return; }
+    async function processRange(start, end) {
+        const matchStart = start.match(/^([A-Z]*)(\d+)$/);
+        const matchEnd = end.match(/^([A-Z]*)(\d+)$/);
 
-        statusDiv.innerText = "Manual Lookup: " + tag;
-        try {
-            const response = await proxyRequest(`/hardware/bytag/${tag}`);
-            let asset = response.id ? response : (response.rows && response.rows.length > 0 ? response.rows[0] : null);
-            if (asset && asset.id) {
-                processValidAsset(asset, tag);
-                input.value = "";
-            } else { alert("Not found"); }
-        } catch (e) { alert("Lookup failed"); }
+        if (!matchStart || !matchEnd || matchStart[1] !== matchEnd[1]) {
+            alert("Range error: Prefixes must match (e.g., CWA)");
+            return;
+        }
+
+        const prefix = matchStart[1], startNum = parseInt(matchStart[2]), endNum = parseInt(matchEnd[2]), padding = matchStart[2].length;
+        if (startNum >= endNum) { alert("Start tag must be lower than end tag."); return; }
+        const count = (endNum - startNum) + 1;
+        if (!confirm(`Process range of ${count} assets?`)) return;
+
+        showSpinner(`Fetching ${count} assets...`);
+        for (let i = startNum; i <= endNum; i++) {
+            const currentTag = prefix + i.toString().padStart(padding, '0');
+            if (scannedQueue.some(item => item.tag === currentTag)) continue;
+            document.getElementById('loading-msg').innerText = `Fetching ${currentTag}...`;
+            try {
+                const res = await proxyRequest(`/hardware/bytag/${currentTag}`);
+                let asset = res.id ? res : (res.rows && res.rows.length > 0 ? res.rows[0] : null);
+                if (asset && asset.id) {
+                    scannedQueue.push({ 
+                        id: asset.id, tag: currentTag, name: asset.model.name, 
+                        target_type: document.getElementById('target-type').value, 
+                        target_id: document.getElementById('target-id').value, 
+                        target_name: document.getElementById('target-id').options[document.getElementById('target-id').selectedIndex].text 
+                    });
+                }
+            } catch (e) {}
+        }
+        hideSpinner();
+        if(soundEnabled) beep.play();
+        updateUI();
     }
 
     function processValidAsset(asset, tag) {
@@ -207,79 +227,47 @@
             target_name: document.getElementById('target-id').options[document.getElementById('target-id').selectedIndex].text 
         });
         updateUI();
-        statusDiv.innerText = "Added: " + tag;
     }
 
-    function triggerFail(tag) {
-        document.body.classList.add('flash-fail');
-        setTimeout(() => document.body.classList.remove('flash-fail'), 800);
-        statusDiv.innerText = "Asset " + tag + " Not Found";
+    function showSpinner(msg) { 
+        document.getElementById('loading-overlay').style.display = 'flex'; 
+        document.getElementById('loading-msg').innerText = msg;
     }
+    function hideSpinner() { document.getElementById('loading-overlay').style.display = 'none'; }
 
     function updateUI() {
         const listEl = document.getElementById('scan-list');
         const seenIds = new Set();
         const duplicateIds = new Set();
-
         scannedQueue.forEach(item => {
             if (seenIds.has(item.id)) duplicateIds.add(item.id);
             seenIds.add(item.id);
         });
-
         listEl.innerHTML = scannedQueue.map((item, idx) => {
             const isDup = duplicateIds.has(item.id);
-            const style = isDup ? 'border: 2px solid var(--danger); background: rgba(231, 76, 60, 0.08);' : '';
-            return `
-                <div class="scan-item" style="${style}">
-                    <div class="tag-info">
-                        ${isDup ? '<b style="color:var(--danger); font-size:10px;">⚠️ DUPLICATE</b><br>' : ''}
-                        <strong>${item.tag}</strong>
-                        <span class="tag-subtext">${item.name} ➔ ${item.target_name}</span>
-                    </div>
-                    <button onclick="removeFromQueue(${idx})" style="border:none; background:none; color:var(--danger); font-size:24px; cursor:pointer;">&times;</button>
-                </div>`;
+            return `<div class="scan-item" style="${isDup ? 'border:2px solid var(--danger); background:rgba(231,76,60,0.08);' : ''}">
+                <div class="tag-info">${isDup ? '<b style="color:var(--danger); font-size:10px;">⚠️ DUPLICATE</b><br>' : ''}<strong>${item.tag}</strong><span class="tag-subtext">${item.name} ➔ ${item.target_name}</span></div>
+                <button onclick="removeFromQueue(${idx})" style="border:none; background:none; color:var(--danger); font-size:24px;">&times;</button>
+            </div>`;
         }).join('');
-
         document.getElementById('clean-btn').style.display = duplicateIds.size > 0 ? 'block' : 'none';
         document.getElementById('batch-controls').style.display = scannedQueue.length > 0 ? 'block' : 'none';
         document.getElementById('count').innerText = scannedQueue.length;
     }
 
-    function cleanList() {
-        const unique = [];
-        const seen = new Set();
-        scannedQueue.forEach(i => {
-            if (!seen.has(i.id)) { unique.push(i); seen.add(i.id); }
-        });
-        scannedQueue = unique;
-        updateUI();
-        statusDiv.innerText = "Duplicates removed.";
-    }
-
-    function removeFromQueue(idx) { scannedQueue.splice(idx, 1); updateUI(); }
-    function clearBatch() { if(confirm("Clear current queue?")) { scannedQueue = []; updateUI(); } }
-
     async function processBatch(action) {
-        const uniqueBatch = [];
-        const seenIds = new Set();
-        scannedQueue.forEach(item => {
-            if (!seenIds.has(item.id)) { uniqueBatch.push(item); seenIds.add(item.id); }
-        });
-
-        if (!confirm(`Run ${action} for ${uniqueBatch.length} unique items?`)) return;
-
-        document.getElementById('progress-container').style.display = 'block';
+        if (!confirm(`Run ${action} for queue?`)) return;
+        showSpinner("Syncing with Snipe-IT...");
+        const unique = scannedQueue.filter((v,i,a)=>a.findIndex(t=>(t.id===v.id))===i);
         const sId = document.getElementById('status-id').value;
 
-        for (let i = 0; i < uniqueBatch.length; i++) {
-            const item = uniqueBatch[i];
-            document.getElementById('progress-bar').style.width = ((i+1)/uniqueBatch.length*100) + "%";
-            document.getElementById('progress-text').innerText = `Syncing ${i+1}/${uniqueBatch.length}...`;
-
+        for (let i = 0; i < unique.length; i++) {
+            const item = unique[i];
+            document.getElementById('loading-msg').innerText = `Processing ${i+1}/${unique.length}...`;
             let endpoint, payload;
             if (action === 'AUDIT') {
                 endpoint = `/hardware/audit`;
-                payload = { asset_tag: item.tag, location_id: document.getElementById('target-type').value === 'location' ? item.target_id : null, note: "Scanner Batch Audit" };
+                payload = { asset_tag: item.tag, location_id: document.getElementById('target-type').value === 'location' ? item.target_id : null, note: "Batch Audit" };
             } else if (action === 'OUT') {
                 await proxyRequest(`/hardware/${item.id}/checkin`, "POST", { status_id: sId });
                 await proxyRequest(`/hardware/${item.id}`, "PATCH", { status_id: sId });
@@ -289,50 +277,25 @@
                 endpoint = `/hardware/${item.id}/checkin`;
                 payload = { status_id: sId };
             }
-
             await proxyRequest(endpoint, "POST", payload);
             await new Promise(r => setTimeout(r, 600)); 
         }
-
-        const auditData = { action, count: uniqueBatch.length, details: uniqueBatch.map(i => `${i.tag} (${i.name}) ➔ ${i.target_name}`) };
-        saveBatchToAuditLog(auditData);
-        await proxyRequest("email-log", "POST", auditData);
-
-        statusDiv.innerText = "Batch Processed!";
+        await proxyRequest("email-log", "POST", { action, count: unique.length, details: unique.map(i => `${i.tag} ➔ ${i.target_name}`) });
+        hideSpinner();
         scannedQueue = []; updateUI();
-        document.getElementById('progress-container').style.display = 'none';
+        statusDiv.innerText = "Sync Complete!";
     }
 
-    function saveBatchToAuditLog(entry) {
-        const logs = JSON.parse(localStorage.getItem('snipe_audit') || '[]');
-        entry.timestamp = new Date().toLocaleString();
-        logs.unshift(entry);
-        localStorage.setItem('snipe_audit', JSON.stringify(logs.slice(0, 50)));
-    }
-
-    function showAuditLogs() {
-        const logs = JSON.parse(localStorage.getItem('snipe_audit') || '[]');
-        document.getElementById('audit-modal').style.display = 'block';
-        document.getElementById('audit-log-content').innerHTML = logs.map(l => `
-            <div style="border-bottom:1px solid #444; padding:10px 0;">
-                <small>${l.timestamp}</small><br><strong>${l.action}</strong> (${l.count} items)
-                <div style="font-size:10px; opacity:0.7;">${l.details.join('<br>')}</div>
-            </div>`).join('');
-    }
-
+    function cleanList() { scannedQueue = scannedQueue.filter((v,i,a)=>a.findIndex(t=>(t.id===v.id))===i); updateUI(); }
+    function removeFromQueue(idx) { scannedQueue.splice(idx, 1); updateUI(); }
+    function clearBatch() { if(confirm("Clear queue?")) { scannedQueue = []; updateUI(); } }
     function applyGlobalToAll() {
-        const gType = document.getElementById('target-type').value;
-        const gId = document.getElementById('target-id').value;
-        const gName = document.getElementById('target-id').options[document.getElementById('target-id').selectedIndex].text;
-        scannedQueue.forEach(i => { i.target_type = gType; i.target_id = gId; i.target_name = gName; });
+        const type = document.getElementById('target-type').value, id = document.getElementById('target-id').value, name = document.getElementById('target-id').options[document.getElementById('target-id').selectedIndex].text;
+        scannedQueue.forEach(i => { i.target_type = type; i.target_id = id; i.target_name = name; });
         updateUI();
     }
-
-    function toggleDarkMode() {
-        const theme = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
-        document.documentElement.setAttribute("data-theme", theme);
-    }
-
+    function triggerFail(tag) { document.body.classList.add('flash-fail'); setTimeout(() => document.body.classList.remove('flash-fail'), 800); statusDiv.innerText = "Not Found: " + tag; }
+    function toggleDarkMode() { document.documentElement.setAttribute("data-theme", document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark"); }
     document.getElementById('manual-tag').addEventListener('keypress', (e) => { if(e.key === 'Enter') addManualTag(); });
 
     loadResources();
