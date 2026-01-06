@@ -30,7 +30,6 @@
         .tag-main { font-weight: bold; font-size: 15px; display: block; }
         .tag-subtext { font-size: 12px; color: var(--secondary); display: block; }
 
-        /* Animation for scan success */
         @keyframes scan-flash {
             0% { border-color: var(--primary); box-shadow: 0 0 20px var(--primary); }
             100% { border-color: var(--border); box-shadow: none; }
@@ -118,19 +117,29 @@
     const PROXY_URL = "https://script.google.com/macros/s/AKfycbwui4ZEpgCNC08tSbNHh_JNz6YojbVl9GD5CpOCdsYkSJNC3pBrT3spyn2TjYCyUuOm9w/exec"; 
     let scannedQueue = [], users = [], locations = [], statusLabels = [];
     let isScanningLocked = false, infoMode = false, rangeMode = false;
+    let lastBeepTime = 0; // Throttling variable
 
-    // Audio Feedback Context
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     function playBeep() {
+        const now = Date.now();
+        if (now - lastBeepTime < 3000) return; // 3-second throttle logic
+        
+        lastBeepTime = now;
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
         osc.connect(gain);
         gain.connect(audioCtx.destination);
         osc.type = "sine";
-        osc.frequency.value = 880; // High A
+        osc.frequency.value = 880; 
         gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
         osc.start();
         osc.stop(audioCtx.currentTime + 0.1);
+        
+        // Trigger Flash only when beeping
+        const rEl = document.getElementById('reader');
+        rEl.classList.remove('flash-active');
+        void rEl.offsetWidth;
+        rEl.classList.add('flash-active');
     }
 
     const scanner = new Html5Qrcode("reader");
@@ -140,14 +149,8 @@
         if (isScanningLocked) return;
         const cleanTag = tag.toString().toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
 
-        // Feedback
-        playBeep();
-        const rEl = document.getElementById('reader');
-        rEl.classList.remove('flash-active');
-        void rEl.offsetWidth;
-        rEl.classList.add('flash-active');
-
         if (infoMode) {
+            playBeep();
             isScanningLocked = true;
             document.getElementById('status').innerText = `🔍 Fetching ${cleanTag}...`;
             try {
@@ -162,11 +165,13 @@
             const startIn = document.getElementById('range-start-input');
             const endIn = document.getElementById('range-end-input');
             if (!startIn.value) {
+                playBeep();
                 isScanningLocked = true;
                 startIn.value = cleanTag;
                 document.getElementById('range-status').innerHTML = `✅ START: ${cleanTag}<br>Scan END Tag`;
                 setTimeout(() => { isScanningLocked = false; }, 1500);
             } else if (!endIn.value && cleanTag !== startIn.value) {
+                playBeep();
                 isScanningLocked = true;
                 endIn.value = cleanTag;
                 document.getElementById('range-status').innerHTML = "✅ Range Ready!";
@@ -174,9 +179,12 @@
             return;
         }
 
-        // Add to standard queue
+        // Prevent adding same tag rapidly before the first request finishes
+        if (scannedQueue.some(i => i.tag === cleanTag)) return;
+
+        playBeep();
         document.getElementById('status').innerText = `✅ Added ${cleanTag}`;
-        setTimeout(() => { document.getElementById('status').innerText = "Ready"; }, 1500);
+        setTimeout(() => { if(!infoMode) document.getElementById('status').innerText = "Ready"; }, 1500);
         addAssetToQueue(cleanTag);
     }
 
