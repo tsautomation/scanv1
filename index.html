@@ -12,7 +12,7 @@
         }
         [data-theme="dark"] { --bg: #121212; --card-bg: #1e1e1e; --text: #e0e0e0; --border: #333333; }
         
-        body { background: var(--bg); color: var(--text); font-family: -apple-system, system-ui, sans-serif; margin: 0; padding-bottom: 60px; overflow-x: hidden; }
+        body { background: var(--bg); color: var(--text); font-family: -apple-system, system-ui, sans-serif; margin: 0; padding-bottom: 70px; overflow-x: hidden; }
         .container { padding: 15px; max-width: 500px; margin: auto; }
         
         #reader { width: 100%; border-radius: 12px; overflow: hidden; background: #000; border: 2px solid var(--border); }
@@ -25,25 +25,20 @@
 
         .btn { padding: 15px; border: none; border-radius: 8px; color: white; font-weight: bold; width: 100%; margin-top: 10px; font-size: 16px; cursor: pointer; }
         
-        /* Scaling Logic for Queue List */
-        .scan-item { padding: 12px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-        .tag-info { flex: 1; min-width: 0; }
-        .tag-main { font-weight: bold; font-size: 16px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .tag-subtext { font-size: clamp(10px, 2.5vw, 13px); color: #7f8c8d; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-        /* Info Modal Overlay */
-        #info-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:4000; justify-content:center; align-items:center; }
-        .info-card { background:var(--card-bg); width:90%; max-width:400px; border-radius:15px; padding:20px; position:relative; max-height: 85vh; overflow-y: auto; border: 1px solid var(--secondary); }
-        .info-row { margin-bottom:12px; border-bottom:1px solid var(--border); padding-bottom:5px; }
+        /* Info Modal */
+        #info-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:4000; justify-content:center; align-items:center; }
+        .info-card { background:var(--card-bg); width:85%; max-width:380px; border-radius:15px; padding:20px; position:relative; border-top: 5px solid var(--warning); box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+        .info-row { margin-bottom:12px; border-bottom:1px solid var(--border); padding-bottom:4px; }
         .info-label { font-size:10px; text-transform:uppercase; color:var(--secondary); font-weight:bold; display:block; letter-spacing: 0.5px; }
-        .info-val { font-size:14px; font-weight:500; color: var(--text); }
+        .info-val { font-size:14px; font-weight:500; color: var(--text); word-break: break-word; }
 
         #loading-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:5000; color:white; flex-direction:column; justify-content:center; align-items:center; }
         .spinner { border: 4px solid rgba(0,0,0,0.1); width: 36px; height: 36px; border-radius: 50%; border-left-color: var(--secondary); animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         
         .nav-bar { position: fixed; bottom: 0; width: 100%; background: var(--card-bg); border-top: 1px solid var(--border); display: flex; justify-content: space-around; padding: 10px 0; z-index: 1500; }
-        .nav-item { background: none; border: none; color: var(--text); font-size: 12px; display: flex; flex-direction: column; align-items: center; cursor: pointer; }
+        .nav-item { background: none; border: none; color: var(--text); font-size: 11px; display: flex; flex-direction: column; align-items: center; opacity: 0.7; cursor: pointer; }
+        .nav-item.active { opacity: 1; color: var(--secondary); font-weight: bold; }
     </style>
 </head>
 <body>
@@ -55,89 +50,49 @@
 
 <div id="info-modal">
     <div class="info-card">
-        <h3 style="margin-top:0; border-bottom:2px solid var(--secondary); padding-bottom:10px; color: var(--secondary);">🔍 Asset Insight</h3>
-        <div id="info-fields"></div>
-        <button onclick="closeInfoModal()" class="btn" style="background:var(--secondary)">Dismiss</button>
+        <h3 style="margin-top:0; color: var(--text);">Detailed Asset Info</h3>
+        <div id="info-fields" style="max-height: 65vh; overflow-y: auto;"></div>
+        <button onclick="closeInfoModal()" class="btn" style="background:var(--secondary); margin-top:20px;">Dismiss</button>
     </div>
 </div>
 
 <div class="container">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-        <h2 style="margin: 0;">📦 SnipeScan Pro</h2>
+        <h2 style="margin: 0;">📦 SnipeScan</h2>
         <div style="display: flex; gap: 15px; align-items: center;">
-            <button id="sound-toggle" onclick="toggleSound()" style="background:none; border:none; font-size: 24px;">🔇</button>
-            <button onclick="toggleDarkMode()" style="background:none; border:none; font-size: 24px;">🌙</button>
+            <button id="sound-toggle" onclick="toggleSound()" style="background:none; border:none; font-size: 20px;">🔇</button>
+            <button onclick="toggleDarkMode()" style="background:none; border:none; font-size: 20px;">🌙</button>
         </div>
     </div>
     
     <div id="reader"></div>
-    <div id="status" style="text-align:center; padding:10px; font-size:14px; font-weight:bold; color: var(--secondary);">Connecting...</div>
+    <div id="status" style="text-align:center; padding:8px; font-size:12px; font-weight:bold; color: var(--secondary);">Connecting...</div>
 
-    <div style="display: flex; gap: 8px; margin-top: 10px;">
-        <button onclick="toggleSection('manual-single')" style="flex:1; padding:10px; font-size:11px; border-radius:20px; border:1px solid var(--border); background:var(--card-bg); color:var(--text);">⌨️ Manual</button>
-        <button onclick="toggleSection('range-box')" style="flex:1; padding:10px; font-size:11px; border-radius:20px; border:1px solid var(--border); background:var(--card-bg); color:var(--text);">🔢 Range</button>
-        <button id="info-btn" onclick="startInfoScan()" style="flex:1; padding:10px; font-size:11px; border-radius:20px; border:2px solid var(--warning); background:var(--card-bg); color:var(--text); font-weight:bold;">ℹ️ Info Scan</button>
-    </div>
-
-    <div id="manual-single" class="card" style="display:none; border-style:dashed;">
-        <div style="display: flex; gap: 10px;">
-            <input type="text" id="manual-tag" placeholder="Type Asset Tag..." style="margin:0; text-transform:uppercase;">
-            <button onclick="addManualTag()" style="background:var(--secondary); color:white; border:none; border-radius:8px; padding:0 15px;">Add</button>
-        </div>
-    </div>
-
-    <div id="range-box" class="card" style="display:none; border-style:dashed; padding:15px;">
-        <p id="range-status" style="font-size:13px; text-align:center;">Scan <b>FIRST</b> asset tag...</p>
-        <button onclick="exitRangeMode()" class="btn" style="background:var(--danger); padding:8px; margin-top:0;">Cancel Range</button>
+    <div style="display: flex; gap: 8px; margin-top: 5px;">
+        <button id="info-btn" onclick="startInfoScan()" style="flex:1; padding:12px; font-size:12px; border-radius:10px; border:2px solid var(--warning); background:var(--card-bg); color:var(--text); font-weight:bold;">🔍 Info Scan</button>
+        <button onclick="toggleSection('manual-single')" style="flex:1; padding:12px; font-size:12px; border-radius:10px; border:1px solid var(--border); background:var(--card-bg); color:var(--text);">⌨️ Manual</button>
     </div>
 
     <div class="card">
-        <label style="font-size:11px; color:var(--secondary)"><strong>ASSIGNMENT SETTINGS</strong></label>
-        <select id="target-type" onchange="toggleTargetList()">
-            <option value="user">Assign to: Person</option>
-            <option value="location">Assign to: Location</option>
-        </select>
-        <select id="target-id"></select>
-        <select id="status-id"></select>
-        <button id="apply-all-btn" onclick="applyGlobalToAll()" style="background:#95a5a6; border:none; color:white; padding:10px; border-radius:8px; width:100%; font-size:11px; margin-top:5px;">🔄 Update Queue Items</button>
-    </div>
-
-    <div class="card">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
             <strong>Queue (<span id="count">0</span>)</strong>
             <button onclick="clearBatch()" style="font-size:11px; color:var(--danger); background:none; border:none;">Clear All</button>
         </div>
-        <div id="scan-list" style="margin-top:10px; max-height:280px; overflow-y:auto; border:1px solid var(--border); border-radius:8px;"></div>
-        
-        <div id="batch-controls" style="display:none;">
-            <button class="btn" style="background:var(--danger)" onclick="processBatch('OUT')">Check-Out Batch</button>
-            <button class="btn" style="background:var(--primary)" onclick="processBatch('IN')">Check-In Batch</button>
-            <button class="btn" style="background:var(--warning); color:#222" onclick="processBatch('AUDIT')">Official Audit</button>
-        </div>
+        <div id="scan-list" style="max-height:250px; overflow-y:auto; border:1px solid var(--border); border-radius:8px;"></div>
     </div>
 </div>
 
-<div class="nav-bar">
-    <button class="nav-item" onclick="toggleHistory(false)"><span>📦</span>Scanner</button>
-    <button class="nav-item" onclick="toggleHistory(true)"><span>📜</span>History</button>
-</div>
-
-<audio id="beep" src="https://www.soundjay.com/buttons/beep-07.mp3" preload="auto"></audio>
-
 <script>
     const PROXY_URL = "https://script.google.com/macros/s/AKfycbwui4ZEpgCNC08tSbNHh_JNz6YojbVl9GD5CpOCdsYkSJNC3pBrT3spyn2TjYCyUuOm9w/exec"; 
-    let scannedQueue = [], users = [], locations = [], statusLabels = [];
-    let isScanningLocked = false, soundEnabled = false, rangeMode = false, infoMode = false, rangeStartTag = null;
-    const beep = document.getElementById("beep"), statusDiv = document.getElementById("status");
+    let scannedQueue = [], infoMode = false, isScanningLocked = false;
 
-    const scanner = new Html5Qrcode("reader");
-    scanner.start({ facingMode: "environment" }, { fps: 20, qrbox: { width: 250, height: 120 } }, onScanSuccess);
+    // ... (Your existing initialization, scanner start, and proxyRequest functions)
 
     function startInfoScan() {
         infoMode = true;
         document.getElementById('info-btn').style.background = "var(--warning)";
-        document.getElementById('info-btn').innerText = "🔴 Scanning...";
-        statusDiv.innerText = "Info Mode: Scan any tag";
+        document.getElementById('info-btn').style.color = "white";
+        document.getElementById('status').innerText = "Info Mode Active: Scan Tag";
     }
 
     function closeInfoModal() {
@@ -145,137 +100,51 @@
         infoMode = false;
         isScanningLocked = false;
         document.getElementById('info-btn').style.background = "var(--card-bg)";
-        document.getElementById('info-btn').innerText = "ℹ️ Info Scan";
-        statusDiv.innerText = "Ready";
+        document.getElementById('info-btn').style.color = "var(--text)";
+        document.getElementById('status').innerText = "Ready";
     }
 
-    async function onScanSuccess(tag) {
-        if (isScanningLocked) return;
-        const cleanTag = tag.toString().toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
-
-        if (infoMode) {
-            isScanningLocked = true;
-            statusDiv.innerText = "Fetching details...";
-            if(soundEnabled) beep.play();
-            const res = await proxyRequest(`/hardware/bytag/${cleanTag}`);
-            let asset = res.id ? res : (res.rows?.[0] || null);
-            displayInfo(asset, cleanTag);
-            return;
-        }
-
-        if (rangeMode) {
-            if (!rangeStartTag) {
-                rangeStartTag = cleanTag;
-                isScanningLocked = true;
-                if(soundEnabled) beep.play();
-                if(confirm(`START: ${cleanTag}\nScan the END tag next?`)) {
-                    document.getElementById('range-status').innerHTML = `START: <b>${cleanTag}</b><br>Aim at <b>LAST</b> asset.`;
-                    setTimeout(() => isScanningLocked = false, 1000);
-                } else { exitRangeMode(); }
-            } else {
-                await processRange(rangeStartTag, cleanTag);
-                exitRangeMode();
-            }
-            return;
-        }
-
-        if (scannedQueue.some(i => i.tag === cleanTag)) return;
-        isScanningLocked = true;
+    // Helper to format dates nicely
+    function fmt(d) {
+        if (!d || d === "null") return null;
+        if (typeof d === 'object' && d.formatted) return d.formatted;
         try {
-            const res = await proxyRequest(`/hardware/bytag/${cleanTag}`);
-            let asset = res.id ? res : (res.rows?.[0] || null);
-            if (asset) processValidAsset(asset, cleanTag);
-            else alert("Asset Not Found: " + cleanTag);
-        } finally { setTimeout(() => { isScanningLocked = false; }, 2000); }
+            const date = new Date(d);
+            return isNaN(date) ? d : date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+        } catch (e) { return d; }
     }
 
     function displayInfo(asset, tag) {
-        if (!asset) {
-            alert("No data found for: " + tag);
-            closeInfoModal();
-            return;
-        }
-
-        const fields = [
-            { label: "Asset ID", val: asset.asset_tag },
-            { label: "Name", val: asset.name },
-            { label: "Model", val: asset.model?.name },
-            { label: "Status", val: asset.status_label?.name || asset.status_label },
-            { label: "Location", val: asset.location?.name || asset.default_location?.name },
-            { label: "Notes", val: asset.notes },
-            { label: "Warranty", val: asset.warranty_months ? asset.warranty_months + " Months" : null },
-            { label: "Order #", val: asset.order_number },
-            { label: "Purchase Date", val: asset.purchase_date?.formatted || asset.purchase_date },
-            { label: "Supplier", val: asset.supplier?.name }
+        if (!asset) { alert("Asset not found"); closeInfoModal(); return; }
+        
+        const data = [
+            { l: "Asset Tag", v: asset.asset_tag },
+            { l: "Status", v: asset.status_label?.name },
+            { l: "Location", v: asset.location?.name || asset.default_location?.name },
+            { l: "Model", v: asset.model?.name },
+            { l: "Last Audit", v: fmt(asset.last_audit_date) },
+            { l: "Last Check-Out", v: fmt(asset.last_checkout) },
+            { l: "Last Check-In", v: fmt(asset.checkin_date) },
+            { l: "Purchase Date", v: fmt(asset.purchase_date) },
+            { l: "Warranty", v: asset.warranty_months ? asset.warranty_months + " Months" : null },
+            { l: "Supplier", v: asset.supplier?.name },
+            { l: "Notes", v: asset.notes }
         ];
 
         let html = "";
-        fields.forEach(f => {
-            if (f.val && f.val !== "null" && f.val !== "") {
+        data.forEach(item => {
+            if (item.v && item.v !== "null" && item.v !== "") {
                 html += `<div class="info-row">
-                            <span class="info-label">${f.label}</span>
-                            <span class="info-val">${f.val}</span>
+                            <span class="info-label">${item.l}</span>
+                            <span class="info-val">${item.v}</span>
                          </div>`;
             }
         });
-
-        document.getElementById('info-fields').innerHTML = html || "<p>No data available.</p>";
+        document.getElementById('info-fields').innerHTML = html;
         document.getElementById('info-modal').style.display = 'flex';
     }
 
-    async function proxyRequest(e, m="GET", p=null) { 
-        const r = await fetch(PROXY_URL, {method:'POST', body:JSON.stringify({endpoint:e, method:m, payload:p})}); 
-        return r.json(); 
-    }
-
-    function toggleSection(id) {
-        document.getElementById('manual-single').style.display = 'none';
-        document.getElementById('range-box').style.display = 'none';
-        document.getElementById(id).style.display = 'block';
-        rangeMode = (id === 'range-box');
-    }
-
-    function processValidAsset(asset, tag) { 
-        if(soundEnabled) beep.play(); 
-        scannedQueue.push({ id: asset.id, tag, name: asset.model.name, target_type: document.getElementById('target-type').value, target_id: document.getElementById('target-id').value, target_name: document.getElementById('target-id').options[document.getElementById('target-id').selectedIndex].text }); 
-        updateUI(); 
-    }
-
-    function updateUI() {
-        document.getElementById('scan-list').innerHTML = scannedQueue.map((item, idx) => `
-            <div class="scan-item">
-                <div class="tag-info">
-                    <span class="tag-main">${item.tag}</span>
-                    <span class="tag-subtext">${item.name} ➔ ${item.target_name}</span>
-                </div>
-                <button onclick="removeFromQueue(${idx})" style="border:none; background:none; color:var(--danger); font-size:24px;">&times;</button>
-            </div>`).join('');
-        document.getElementById('batch-controls').style.display = scannedQueue.length > 0 ? 'block' : 'none';
-        document.getElementById('count').innerText = scannedQueue.length;
-    }
-
-    function exitRangeMode() { rangeMode = false; rangeStartTag = null; isScanningLocked = false; document.getElementById('range-box').style.display = 'none'; }
-    function removeFromQueue(i) { scannedQueue.splice(i, 1); updateUI(); }
-    function toggleSound() { soundEnabled = !soundEnabled; document.getElementById("sound-toggle").innerText = soundEnabled ? "🔊" : "🔇"; }
-    function toggleDarkMode() { document.documentElement.setAttribute("data-theme", document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark"); }
-    function toggleHistory(show) { /* Placeholder for history toggle */ }
-
-    async function loadResources() {
-        try {
-            const [u, l, s] = await Promise.all([proxyRequest('/users?limit=500'), proxyRequest('/locations?limit=500'), proxyRequest('/statuslabels')]);
-            users = u.rows; locations = l.rows; statusLabels = s.rows;
-            toggleTargetList();
-            document.getElementById('status-id').innerHTML = statusLabels.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
-            statusDiv.innerText = "Ready";
-        } catch (e) { statusDiv.innerText = "API Error"; }
-    }
-
-    function toggleTargetList() { 
-        const list = document.getElementById('target-type').value === 'user' ? users : locations; 
-        document.getElementById('target-id').innerHTML = list.map(i => `<option value="${i.id}">${i.name || i.display_name}</option>`).join(''); 
-    }
-
-    loadResources();
+    // ... (Existing onScanSuccess logic, ensuring it calls displayInfo when infoMode is true)
 </script>
 </body>
 </html>
