@@ -50,9 +50,9 @@
 
 <div id="info-modal">
     <div class="info-card">
-        <h3 style="margin-top:0;">Asset Details</h3>
-        <div id="info-fields" style="max-height: 50vh; overflow-y: auto;"></div>
-        <button onclick="closeInfoModal()" class="btn" style="background:var(--secondary); width:100%; margin-top:15px;">Close</button>
+        <h3 style="margin-top:0; color:var(--warning);">Asset Information</h3>
+        <div id="info-fields" style="max-height: 55vh; overflow-y: auto;"></div>
+        <button onclick="closeInfoModal()" class="btn" style="background:var(--secondary); width:100%; margin-top:15px;">Close Info</button>
     </div>
 </div>
 
@@ -154,12 +154,9 @@
     }
 
     function startInfoScan() {
-        // Reset modes
         infoMode = true;
         rangeMode = false;
-        isScanningLocked = false; // Critical Fix: Unlock scanner immediately
-        
-        // UI Feedback
+        isScanningLocked = false;
         document.getElementById('info-btn').style.background = "var(--warning)";
         document.getElementById('info-btn').style.color = "white";
         document.getElementById('status').innerText = "INFO MODE: Scan any tag";
@@ -169,19 +166,20 @@
 
     function displayInfo(asset, tag) {
         if (!asset) { 
-            alert("Asset " + tag + " not found in Snipe-IT"); 
+            alert("Asset " + tag + " not found"); 
             closeInfoModal(); 
             return; 
         }
         
+        // Re-added Asset Name/Model field here
         const rows = [
-            {l: "Tag", v: asset.asset_tag},
-            {l: "Model", v: asset.model?.name},
-            {l: "Status", v: asset.status_label?.name},
-            {l: "Current Location", v: asset.location?.name || asset.default_location?.name},
+            {l: "Asset Tag", v: asset.asset_tag},
+            {l: "Asset Name / Model", v: asset.model?.name || asset.name},
+            {l: "Current Status", v: asset.status_label?.name},
+            {l: "Location", v: asset.location?.name || asset.default_location?.name},
             {l: "Assigned To", v: asset.assigned_to?.name || "Unassigned"},
-            {l: "Last Audit", v: asset.last_audit_date?.formatted || 'Never'},
-            {l: "Last Check-In", v: asset.checkin_date?.formatted || 'N/A'}
+            {l: "Serial Number", v: asset.serial},
+            {l: "Last Audit", v: asset.last_audit_date?.formatted || 'Never'}
         ];
         
         document.getElementById('info-fields').innerHTML = rows.map(r => `
@@ -223,10 +221,13 @@
 
         showLoading("Searching Range...");
         const prefix = start.match(/^[A-Z]*/)[0];
-        const sNum = parseInt(start.match(/\d+/)[0]);
-        const eNum = parseInt(end.match(/\d+/)[0]);
+        const sMatch = start.match(/\d+/);
+        const eMatch = end.match(/\d+/);
+        if(!sMatch || !eMatch) return alert("Invalid Numbers");
+
+        const sNum = parseInt(sMatch[0]), eNum = parseInt(eMatch[0]);
         const low = Math.min(sNum, eNum), high = Math.max(sNum, eNum);
-        const pad = start.match(/\d+/)[0].length;
+        const pad = sMatch[0].length;
 
         for (let i = low; i <= high; i++) {
             const currentTag = prefix + i.toString().padStart(pad, '0');
