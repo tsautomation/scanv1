@@ -6,193 +6,344 @@
     <title>SnipeScan Pro</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
-        :root { --bg: #f8f9fa; --card-bg: #fff; --text: #2c3e50; --primary: #2ecc71; --secondary: #3498db; --danger: #e74c3c; --warning: #f39c12; --border: #ddd; }
-        [data-theme="dark"] { --bg: #121212; --card-bg: #1e1e1e; --text: #e0e0e0; --border: #333; }
-        body { background: var(--bg); color: var(--text); font-family: -apple-system, sans-serif; margin: 0; padding: 10px; padding-bottom: 40px; }
-        .card { background: var(--card-bg); padding: 15px; border-radius: 12px; margin-top: 10px; border: 1px solid var(--border); box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-        #reader { width: 100%; border-radius: 12px; overflow: hidden; background: #000; position: relative; border: 3px solid var(--border); }
-        .btn { padding: 14px; border: none; border-radius: 8px; color: #fff; font-weight: bold; width: 100%; margin-top: 8px; cursor: pointer; display: block; text-align: center; text-decoration: none; }
-        .scan-item { padding: 10px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
-        input, select { width: 100%; padding: 12px; margin: 5px 0; border-radius: 8px; border: 1px solid var(--border); background: var(--card-bg); color: var(--text); font-size: 16px; box-sizing: border-box; }
-        #info-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:1000; justify-content:center; align-items:center; }
-        .modal-content { background:var(--card-bg); padding:20px; width:85%; max-width:400px; border-radius:15px; border-top: 5px solid var(--warning); }
-        .info-row { margin-bottom: 8px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
-        .info-label { font-size: 10px; font-weight: bold; color: var(--secondary); text-transform: uppercase; }
-        #loading-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:2000; color:#fff; flex-direction:column; justify-content:center; align-items:center; }
+        :root { 
+            --bg: #f8f9fa; --card-bg: #ffffff; --text: #2c3e50; --border: #dddddd; 
+            --primary: #2ecc71; --secondary: #3498db; --danger: #e74c3c; --warning: #f39c12; 
+        }
+        [data-theme="dark"] { --bg: #121212; --card-bg: #1e1e1e; --text: #e0e0e0; --border: #333333; }
+        
+        body { background: var(--bg); color: var(--text); font-family: -apple-system, system-ui, sans-serif; margin: 0; padding-bottom: 80px; overflow-x: hidden; }
+        .container { padding: 15px; max-width: 500px; margin: auto; }
+        
+        #reader { width: 100%; border-radius: 12px; overflow: hidden; background: #000; border: 4px solid var(--border); transition: border-color 0.2s; }
+        .card { background: var(--card-bg); padding: 15px; border-radius: 12px; margin-top: 15px; border: 1px solid var(--border); box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        
+        input, select { 
+            background: var(--card-bg); color: var(--text); border: 1px solid var(--border); 
+            width: 100%; padding: 10px; margin: 4px 0; border-radius: 8px; font-size: 16px; box-sizing: border-box; 
+        }
+
+        .btn { padding: 15px; border: none; border-radius: 8px; color: white; font-weight: bold; width: 100%; margin-top: 10px; font-size: 14px; cursor: pointer; display: block; text-align: center; }
+        
+        .scan-item { padding: 12px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+        .tag-info { flex: 1; min-width: 0; }
+        .tag-main { font-weight: bold; font-size: 15px; display: block; }
+        .tag-subtext { font-size: 12px; color: var(--secondary); display: block; }
+
+        @keyframes scan-flash {
+            0% { border-color: var(--primary); box-shadow: 0 0 20px var(--primary); }
+            100% { border-color: var(--border); box-shadow: none; }
+        }
+        .flash-active { animation: scan-flash 0.5s ease-out; }
+
+        #info-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:4000; justify-content:center; align-items:center; }
+        .info-card { background:var(--card-bg); width:85%; max-width:380px; border-radius:15px; padding:20px; border-top: 5px solid var(--warning); box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .info-row { margin-bottom:10px; border-bottom:1px solid var(--border); padding-bottom:4px; }
+        .info-label { font-size:10px; text-transform:uppercase; color:var(--secondary); font-weight:bold; display:block; }
+        .info-val { font-size:14px; color: var(--text); font-weight: 500; }
+
+        #loading-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:5000; color:white; flex-direction:column; justify-content:center; align-items:center; }
+        @keyframes spin { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
     </style>
 </head>
 <body>
 
-<div id="loading-overlay"><div style="font-weight:bold; font-size:18px;" id="loading-msg">Processing...</div></div>
-<div id="info-modal"><div class="modal-content" id="info-body"></div></div>
-
-<div style="display:flex; justify-content:space-between; align-items:center;">
-    <h2 style="margin:0;">📦 SnipeScan Pro</h2>
-    <button onclick="toggleDarkMode()" style="background:none; border:none; font-size:20px;">🌙</button>
+<div id="loading-overlay">
+    <div style="border:4px solid #fff; border-left-color:var(--secondary); width:30px; height:30px; border-radius:50%; animation:spin 1s linear infinite;"></div>
+    <div id="loading-msg" style="margin-top:15px; font-weight:bold;">Processing...</div>
 </div>
 
-<div id="reader" style="margin-top:10px;"></div>
-<div id="status" style="text-align:center; font-size:12px; padding:8px; font-weight:bold; color:var(--secondary);">Ready</div>
-
-<div style="display:flex; gap:8px;">
-    <button id="info-btn" class="btn" style="background:var(--warning); color:#000;" onclick="startInfoScan()">🔍 Info Scan</button>
-    <button class="btn" style="background:var(--secondary)" onclick="toggleSection('manual')">⌨️ Manual</button>
-</div>
-
-<div id="manual" class="card" style="display:none; border-style:dashed;">
-    <input type="text" id="manual-tag" placeholder="Type Asset Tag..." style="text-transform:uppercase;">
-    <button class="btn" style="background:var(--secondary)" onclick="addAssetToQueue(document.getElementById('manual-tag').value.toUpperCase())">Add to Queue</button>
-</div>
-
-<div class="card">
-    <div style="display:flex; justify-content:space-between;">
-        <strong>Queue (<span id="count">0</span>)</strong>
-        <button onclick="clearBatch()" style="color:var(--danger); border:none; background:none; font-size:11px;">Clear All</button>
+<div id="info-modal">
+    <div class="info-card">
+        <h3 style="margin-top:0; color:var(--warning);">Asset Information</h3>
+        <div id="info-fields" style="max-height: 55vh; overflow-y: auto;"></div>
+        <button onclick="closeInfoModal()" class="btn" style="background:var(--secondary); width:100%; margin-top:15px;">Close Info</button>
     </div>
-    <div id="list" style="max-height:150px; overflow-y:auto; margin-top:8px;"></div>
 </div>
 
-<div class="card">
-    <label style="font-size:11px; font-weight:bold;">TARGET SETTINGS</label>
-    <select id="target-type" onchange="loadResources()"><option value="user">Assign to User</option><option value="location" selected>Assign to Location</option></select>
-    <input type="text" id="assign-search" placeholder="Filter names..." onkeyup="filterList()">
-    <select id="target-id"></select>
-    <select id="status-id"></select>
+<div class="container">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <h2 style="margin: 0;">📦 SnipeScan Pro</h2>
+        <button onclick="toggleDarkMode()" style="background:none; border:none; font-size: 20px;">🌙</button>
+    </div>
     
-    <div id="controls" style="display:none; margin-top:10px; border-top:1px solid var(--border); padding-top:10px;">
-        <button class="btn" style="background:var(--primary)" onclick="processBatch('IN')">📥 Check-In All</button>
-        <button class="btn" style="background:var(--danger)" onclick="processBatch('OUT')">📤 Check-Out All</button>
-        <button class="btn" style="background:var(--warning); color:#000" onclick="processBatch('AUDIT')">⚖️ Official Audit</button>
+    <div id="reader"></div>
+    <div id="status" style="text-align:center; padding:8px; font-size:12px; font-weight:bold; color: var(--secondary);">Connecting...</div>
+
+    <div style="display: flex; gap: 5px; margin-top: 5px;">
+        <button id="info-btn" onclick="startInfoScan()" style="flex:1; padding:12px; font-size:11px; border-radius:8px; border:2px solid var(--warning); background:var(--card-bg); color:var(--text); font-weight:bold;">🔍 Info Scan</button>
+        <button onclick="toggleSection('manual-single')" style="flex:1; padding:12px; font-size:11px; border-radius:8px; border:1px solid var(--border); background:var(--card-bg);">⌨️ Manual</button>
+        <button onclick="toggleSection('range-box')" style="flex:1; padding:12px; font-size:11px; border-radius:8px; border:1px solid var(--border); background:var(--card-bg);">🔢 Range</button>
+    </div>
+
+    <div id="manual-single" class="card" style="display:none; border-style:dashed;">
+        <input type="text" id="manual-tag" placeholder="Type Asset Tag..." style="text-transform:uppercase;">
+        <button onclick="addManualTag()" class="btn" style="background:var(--secondary); width:100%;">Add to Queue</button>
+    </div>
+
+    <div id="range-box" class="card" style="display:none; border-style:dashed;">
+        <div id="range-status" style="font-size:12px; text-align:center; padding:8px; margin-bottom:10px; font-weight:bold; background:rgba(52, 152, 219, 0.1); border-radius:5px;">Step 1: Scan START Tag</div>
+        <div style="display: flex; gap: 5px;">
+            <input type="text" id="range-start-input" placeholder="Start" style="text-transform:uppercase;">
+            <input type="text" id="range-end-input" placeholder="End" style="text-transform:uppercase;">
+        </div>
+        <button onclick="manualRangeSubmit()" class="btn" style="background:var(--primary); width:100%;">Process Range</button>
+        <button onclick="exitRangeMode()" class="btn" style="background:var(--danger); width:100%; padding:8px; font-size:11px;">Cancel</button>
+    </div>
+
+    <div class="card">
+        <select id="target-type" onchange="toggleTargetList()"><option value="user">Assign to: Person</option><option value="location">Assign to: Location</option></select>
+        <input type="text" id="assign-search" placeholder="Filter names..." onkeyup="filterAssignList()">
+        <select id="target-id" onchange="updateUI()"></select>
+        <select id="status-id"></select>
+    </div>
+
+    <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <strong>Queue (<span id="count">0</span>)</strong>
+            <button onclick="clearBatch()" style="font-size:11px; color:var(--danger); background:none; border:none;">Clear All</button>
+        </div>
+        <div id="scan-list" style="max-height:250px; overflow-y:auto; margin-top:10px; border:1px solid var(--border); border-radius:8px;"></div>
+        
+        <div id="batch-controls" style="display:none; flex-direction:column; gap:5px; margin-top:10px;">
+            <button class="btn" style="background:var(--primary)" onclick="processBatch('IN')">Check-In All</button>
+            <button class="btn" style="background:var(--danger)" onclick="processBatch('OUT')">Check-Out All</button>
+            <button class="btn" style="background:var(--warning); color:#222" onclick="processBatch('AUDIT')">Official Audit</button>
+        </div>
     </div>
 </div>
 
 <script>
-    const PROXY_URL = "https://script.google.com/macros/s/AKfycbyAulZX5dQD8cqSqsNK9RyhPDzvaRe5OR4-T6p7xz81HOZgv8H_TmI1FWI-Nf4OboDg-A/exec"; // REPLACE THIS!
-    let queue = [], users = [], locations = [], labels = [], infoMode = false, isLocked = false;
+    const PROXY_URL = "https://script.google.com/macros/s/AKfycbyAulZX5dQD8cqSqsNK9RyhPDzvaRe5OR4-T6p7xz81HOZgv8H_TmI1FWI-Nf4OboDg-A/exec"; // PASTE YOUR URL HERE
+    let scannedQueue = [], users = [], locations = [], statusLabels = [];
+    let isScanningLocked = false, infoMode = false, rangeMode = false;
+    let lastBeepTime = 0;
 
-    const scanner = new Html5Qrcode("reader");
-    scanner.start({ facingMode: "environment" }, { fps: 15, qrbox: {width: 250, height: 150} }, (tag) => {
-        if (isLocked) return;
-        const clean = tag.trim().toUpperCase();
-        if (infoMode) return fetchInfo(clean);
-        if (!queue.some(i => i.tag === clean)) addAssetToQueue(clean);
-    });
-
-    async function addAssetToQueue(tag) {
-        isLocked = true;
-        const res = await proxyRequest(`/hardware/bytag/${tag}`);
-        const asset = res.id ? res : res.rows?.[0];
-        if (asset) {
-            queue.unshift({ id: asset.id, tag: tag, name: asset.model.name });
-            updateUI();
-        }
-        setTimeout(() => { isLocked = false; }, 1500);
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playBeep() {
+        const now = Date.now();
+        if (now - lastBeepTime < 3000) return;
+        
+        lastBeepTime = now;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.type = "sine";
+        osc.frequency.value = 880; 
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.1);
+        
+        const rEl = document.getElementById('reader');
+        rEl.classList.remove('flash-active');
+        void rEl.offsetWidth;
+        rEl.classList.add('flash-active');
     }
 
-    async function fetchInfo(tag) {
-        isLocked = true; infoMode = false;
-        document.getElementById('status').innerText = 'Searching...';
-        const res = await proxyRequest(`/hardware/bytag/${tag}`);
-        const a = res.id ? res : res.rows?.[0];
-        if (!a) { alert("Asset not found"); isLocked = false; return; }
-        
-        const rows = [["Tag", a.asset_tag], ["Model", a.model.name], ["Serial", a.serial], ["Status", a.status_label.name], ["Assigned", a.assigned_to?.name || 'Unassigned']];
-        document.getElementById('info-body').innerHTML = `<h3>Asset Info</h3>` + rows.map(r => `<div class="info-row"><div class="info-label">${r[0]}</div><div>${r[1] || 'N/A'}</div></div>`).join('') + `<button class="btn" style="background:var(--secondary)" onclick="closeModal()">Close</button>`;
+    const scanner = new Html5Qrcode("reader");
+    scanner.start({ facingMode: "environment" }, { fps: 20, qrbox: { width: 250, height: 120 } }, onScanSuccess);
+
+    async function onScanSuccess(tag) {
+        if (isScanningLocked) return;
+        const cleanTag = tag.toString().toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
+
+        if (infoMode) {
+            playBeep();
+            isScanningLocked = true;
+            document.getElementById('status').innerText = `🔍 Fetching ${cleanTag}...`;
+            try {
+                const res = await proxyRequest(`/hardware/bytag/${cleanTag}`);
+                const asset = res.id ? res : (res.rows?.[0] || null);
+                displayInfo(asset, cleanTag);
+            } catch (e) { alert("Error"); isScanningLocked = false; }
+            return;
+        }
+
+        if (rangeMode) {
+            const startIn = document.getElementById('range-start-input');
+            const endIn = document.getElementById('range-end-input');
+            if (!startIn.value) {
+                playBeep();
+                isScanningLocked = true;
+                startIn.value = cleanTag;
+                document.getElementById('range-status').innerHTML = `✅ START: ${cleanTag}<br>Scan END Tag`;
+                setTimeout(() => { isScanningLocked = false; }, 1500);
+            } else if (!endIn.value && cleanTag !== startIn.value) {
+                playBeep();
+                isScanningLocked = true;
+                endIn.value = cleanTag;
+                document.getElementById('range-status').innerHTML = "✅ Range Ready!";
+            }
+            return;
+        }
+
+        if (scannedQueue.some(i => i.tag === cleanTag)) return;
+
+        playBeep();
+        document.getElementById('status').innerText = `✅ Added ${cleanTag}`;
+        setTimeout(() => { if(!infoMode) document.getElementById('status').innerText = "Ready"; }, 1500);
+        addAssetToQueue(cleanTag);
+    }
+
+    function displayInfo(asset, tag) {
+        if (!asset) { alert("Not found"); closeInfoModal(); return; }
+        const rows = [
+            {l: "Asset Tag", v: asset.asset_tag},
+            {l: "Asset Name", v: asset.name},
+            {l: "Model", v: asset.model?.name},
+            {l: "Status", v: asset.status_label?.name},
+            {l: "Location", v: asset.location?.name || asset.default_location?.name},
+            {l: "Assigned To", v: asset.assigned_to?.name || "Unassigned"},
+            {l: "Serial", v: asset.serial},
+            {l: "Last Audit", v: asset.last_audit_date?.formatted || 'Never'}
+        ];
+        document.getElementById('info-fields').innerHTML = rows.map(r => `
+            <div class="info-row"><span class="info-label">${r.l}</span><span class="info-val">${r.v || 'N/A'}</span></div>
+        `).join('');
         document.getElementById('info-modal').style.display = 'flex';
-        document.getElementById('status').innerText = 'Ready';
+    }
+
+    async function addAssetToQueue(tag) {
+        if (scannedQueue.some(i => i.tag === tag)) return;
+        isScanningLocked = true;
+        try {
+            const res = await proxyRequest(`/hardware/bytag/${tag}`);
+            const asset = res.id ? res : (res.rows?.[0] || null);
+            if (asset) {
+                scannedQueue.push({ id: asset.id, tag: tag, name: asset.model.name });
+                updateUI();
+            }
+        } finally { setTimeout(() => { isScanningLocked = false; }, 1000); }
     }
 
     async function processBatch(type) {
-        if (!queue.length) return;
-        showLoading(`Processing ${type}...`);
-        
+        if (!scannedQueue.length) return;
         const targetId = document.getElementById('target-id').value;
-        const statusId = document.getElementById('status-id').value;
         const targetName = document.getElementById('target-id').options[document.getElementById('target-id').selectedIndex].text;
-        
-        const nextAudit = new Date(); nextAudit.setFullYear(nextAudit.getFullYear() + 1);
-        const auditDate = nextAudit.toISOString().split('T')[0];
+        const emailPayload = {
+            action: type,
+            count: scannedQueue.length,
+            details: scannedQueue.map(a => `${a.tag} (${a.name}) ➔ ${targetName}`)
+        };
+
+        showLoading("Syncing with Snipe-IT...");
+        const tType = document.getElementById('target-type').value;
+        const sId = document.getElementById('status-id').value;
 
         try {
-            for (let item of queue) {
-                let ep, p = {};
-                if (type === 'AUDIT') { 
-                    ep = `/hardware/${item.id}/audit`; 
-                    p = { asset_tag: item.tag, location_id: targetId, next_audit_date: auditDate, note: "Scanner Audit" }; 
-                }
+            for (const asset of scannedQueue) {
+                let ep = `/hardware/${asset.id}/audit`, m = "POST", p = { asset_tag: asset.tag, location_id: targetId };
                 if (type === 'OUT') { 
-                    ep = `/hardware/${item.id}/checkout`; 
-                    p = { checkout_to_type: document.getElementById('target-type').value, assigned_location: targetId, assigned_user: targetId, status_id: statusId }; 
+                    ep = `/hardware/${asset.id}/checkout`; 
+                    p = { checkout_to_type: tType, assigned_user: targetId, assigned_location: targetId, status_id: sId }; 
+                } else if (type === 'IN') { 
+                    ep = `/hardware/${asset.id}/checkin`; 
+                    p = { status_id: sId }; 
                 }
-                if (type === 'IN') { 
-                    ep = `/hardware/${item.id}/checkin`; 
-                    p = { status_id: statusId }; 
-                }
-                await proxyRequest(ep, "POST", p);
+                const result = await proxyRequest(ep, m, p);
+                console.log("Item Success:", result);
             }
-
-            await proxyRequest('email-log', "POST", { action: type, count: queue.length, details: queue.map(i => `${i.tag} | ${i.name} ➔ ${targetName}`) });
-            
-            alert(`Success! ${type} complete for ${queue.length} items.`);
-            queue = []; updateUI();
-        } catch (e) { alert("Error: " + e); } finally { hideLoading(); }
+            showLoading("Sending PDF Report...");
+            await proxyRequest('email-log', 'POST', emailPayload);
+            alert("Success! Snipe-IT updated and PDF emailed.");
+            scannedQueue = []; updateUI();
+        } catch (e) { 
+            console.error(e);
+            alert("Process finished. Check Snipe-IT or Execution Logs if errors occurred."); 
+        } finally { hideLoading(); }
     }
-
-    async function proxyRequest(endpoint, method = "GET", payload = null) {
-    try {
-        const res = await fetch(PROXY_URL, { 
-            method: 'POST', 
-            mode: 'cors', // Force CORS mode
-            body: JSON.stringify({ endpoint, method, payload }) 
-        });
-        
-        if (!res.ok) throw new Error(`Network Error: ${res.status}`);
-        
-        const data = await res.json();
-        console.log("Server Response:", data);
-        return data;
-    } catch (e) {
-        console.error("Fetch failed:", e);
-        alert("Connection Failed: Check if PROXY_URL is correct and Deployed as 'Anyone'.");
-        throw e;
-    }
-}
 
     function updateUI() {
-        document.getElementById('count').innerText = queue.length;
-        document.getElementById('list').innerHTML = queue.map((i, idx) => `<div class="scan-item"><div><b>${i.tag}</b><br><small>${i.name}</small></div><button onclick="queue.splice(${idx},1);updateUI();" style="color:var(--danger); border:none; background:none; font-size:20px;">&times;</button></div>`).join('');
-        document.getElementById('controls').style.display = queue.length ? 'block' : 'none';
+        const sel = document.getElementById('target-id');
+        const target = sel.options[sel.selectedIndex]?.text || "...";
+        document.getElementById('scan-list').innerHTML = scannedQueue.map((item, idx) => `
+            <div class="scan-item">
+                <div class="tag-info"><span class="tag-main">${item.tag}</span><span class="tag-subtext">${item.name} ➔ ${target}</span></div>
+                <button onclick="removeFromQueue(${idx})" style="border:none; background:none; color:var(--danger); font-size:24px;">&times;</button>
+            </div>`).join('');
+        document.getElementById('batch-controls').style.display = scannedQueue.length > 0 ? 'flex' : 'none';
+        document.getElementById('count').innerText = scannedQueue.length;
     }
 
-    function startInfoScan() { infoMode = true; document.getElementById('status').innerText = 'INFO MODE ACTIVE'; document.getElementById('info-btn').style.background = "var(--primary)"; }
-    function closeModal() { document.getElementById('info-modal').style.display = 'none'; isLocked = false; document.getElementById('info-btn').style.background = "var(--warning)"; }
+    function toggleSection(id) {
+        infoMode = false;
+        document.getElementById('info-btn').style.background = "var(--card-bg)";
+        document.getElementById('manual-single').style.display = 'none';
+        document.getElementById('range-box').style.display = 'none';
+        document.getElementById(id).style.display = 'block';
+        rangeMode = (id === 'range-box');
+        if(rangeMode) { document.getElementById('range-start-input').value = ''; document.getElementById('range-end-input').value = ''; }
+    }
+
+    function startInfoScan() {
+        infoMode = true; rangeMode = false; isScanningLocked = false;
+        document.getElementById('info-btn').style.background = "var(--warning)";
+        document.getElementById('status').innerText = "INFO MODE: Scan tag";
+        document.getElementById('manual-single').style.display = 'none';
+        document.getElementById('range-box').style.display = 'none';
+    }
+
+    function filterAssignList() {
+        const query = document.getElementById('assign-search').value.toLowerCase();
+        const select = document.getElementById('target-id');
+        const list = document.getElementById('target-type').value === 'user' ? users : locations;
+        const filtered = list.filter(item => (item.name || item.display_name).toLowerCase().includes(query));
+        select.innerHTML = filtered.map(i => `<option value="${i.id}">${i.name || i.display_name}</option>`).join('');
+        updateUI();
+    }
+
+    async function manualRangeSubmit() {
+        const start = document.getElementById('range-start-input').value.toUpperCase();
+        const end = document.getElementById('range-end-input').value.toUpperCase();
+        if (!start || !end) return alert("Missing tags");
+        showLoading("Searching Range...");
+        try {
+            const prefix = start.match(/^[A-Z]*/)[0];
+            const sMatch = start.match(/\d+/), eMatch = end.match(/\d+/);
+            const sNum = parseInt(sMatch[0]), eNum = parseInt(eMatch[0]);
+            const low = Math.min(sNum, eNum), high = Math.max(sNum, eNum), pad = sMatch[0].length;
+            for (let i = low; i <= high; i++) {
+                const currentTag = prefix + i.toString().padStart(pad, '0');
+                if (!scannedQueue.some(q => q.tag === currentTag)) {
+                    const res = await proxyRequest(`/hardware/bytag/${currentTag}`);
+                    const asset = res.id ? res : (res.rows?.[0] || null);
+                    if (asset) scannedQueue.push({ id: asset.id, tag: currentTag, name: asset.model.name });
+                }
+            }
+        } catch(e) { alert("Range search partially failed."); }
+        updateUI(); hideLoading(); exitRangeMode();
+    }
+
+    async function proxyRequest(e, m="GET", p=null) { 
+        const r = await fetch(PROXY_URL, {
+            method:'POST', 
+            mode: 'cors',
+            body:JSON.stringify({endpoint:e, method:m, payload:p})
+        }); 
+        return r.json(); 
+    }
+
+    function closeInfoModal() { document.getElementById('info-modal').style.display = 'none'; infoMode = false; isScanningLocked = false; document.getElementById('info-btn').style.background = "var(--card-bg)"; document.getElementById('status').innerText = "Ready"; }
+    function addManualTag() { const t = document.getElementById('manual-tag').value.toUpperCase(); if(t) addAssetToQueue(t); document.getElementById('manual-tag').value = ''; }
+    function removeFromQueue(i) { scannedQueue.splice(i, 1); updateUI(); }
+    function clearBatch() { scannedQueue = []; updateUI(); }
+    function exitRangeMode() { rangeMode = false; document.getElementById('range-box').style.display = 'none'; }
     function showLoading(m) { document.getElementById('loading-msg').innerText = m; document.getElementById('loading-overlay').style.display = 'flex'; }
     function hideLoading() { document.getElementById('loading-overlay').style.display = 'none'; }
-    function toggleSection(id) { const el = document.getElementById(id); el.style.display = el.style.display === 'none' ? 'block' : 'none'; }
     function toggleDarkMode() { document.documentElement.setAttribute("data-theme", document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark"); }
+    function toggleTargetList() { document.getElementById('assign-search').value = ''; filterAssignList(); }
 
-    async function init() {
-        const [u, l, s] = await Promise.all([proxyRequest('/users?limit=500'), proxyRequest('/locations?limit=500'), proxyRequest('/statuslabels')]);
-        users = u.rows; locations = l.rows; labels = s.rows;
-        loadResources();
-        document.getElementById('status-id').innerHTML = labels.map(i => `<option value="${i.id}">${i.name}</option>`).join('');
+    async function loadResources() {
+        try {
+            const [u, l, s] = await Promise.all([proxyRequest('/users?limit=500'), proxyRequest('/locations?limit=500'), proxyRequest('/statuslabels')]);
+            users = u.rows; locations = l.rows; statusLabels = s.rows;
+            toggleTargetList();
+            document.getElementById('status-id').innerHTML = statusLabels.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+            document.getElementById('status').innerText = "Ready";
+        } catch (e) { document.getElementById('status').innerText = "Error Loading Resources"; }
     }
-
-    function loadResources() {
-        const data = document.getElementById('target-type').value === 'user' ? users : locations;
-        document.getElementById('target-id').innerHTML = data.map(i => `<option value="${i.id}">${i.name || i.display_name}</option>`).join('');
-    }
-
-    function filterList() {
-        const q = document.getElementById('assign-search').value.toLowerCase();
-        const data = document.getElementById('target-type').value === 'user' ? users : locations;
-        const filtered = data.filter(i => (i.name || i.display_name).toLowerCase().includes(q));
-        document.getElementById('target-id').innerHTML = filtered.map(i => `<option value="${i.id}">${i.name || i.display_name}</option>`).join('');
-    }
-
-    function clearBatch() { queue = []; updateUI(); }
-
-    init();
+    loadResources();
 </script>
 </body>
 </html>
