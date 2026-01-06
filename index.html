@@ -13,10 +13,21 @@
         [data-theme="dark"] { --bg: #121212; --card-bg: #1e1e1e; --text: #e0e0e0; --border: #333333; }
         
         body { background: var(--bg); color: var(--text); font-family: -apple-system, system-ui, sans-serif; margin: 0; padding-bottom: 80px; overflow-x: hidden; }
-        .container { padding: 15px; max-width: 500px; margin: auto; }
+        .container { padding: 10px; max-width: 500px; margin: auto; }
         
-        #reader { width: 100%; border-radius: 12px; overflow: hidden; background: #000; border: 4px solid var(--border); transition: border-color 0.2s; }
-        .card { background: var(--card-bg); padding: 15px; border-radius: 12px; margin-top: 15px; border: 1px solid var(--border); box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        /* Smaller Camera Window */
+        #reader { 
+            width: 100%; 
+            height: 180px; /* Forced smaller height */
+            border-radius: 12px; 
+            overflow: hidden; 
+            background: #000; 
+            border: 4px solid var(--border); 
+            transition: border-color 0.2s; 
+        }
+        #reader video { object-fit: cover !important; } /* Ensures video fills small box */
+
+        .card { background: var(--card-bg); padding: 15px; border-radius: 12px; margin-top: 12px; border: 1px solid var(--border); box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
         
         input, select { 
             background: var(--card-bg); color: var(--text); border: 1px solid var(--border); 
@@ -63,7 +74,7 @@
 
 <div class="container">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-        <h2 style="margin: 0;">📦 SnipeScan Pro</h2>
+        <h2 style="margin: 0; font-size: 1.2rem;">📦 SnipeScan Pro</h2>
         <button onclick="toggleDarkMode()" style="background:none; border:none; font-size: 20px;">🌙</button>
     </div>
     
@@ -92,19 +103,19 @@
     </div>
 
     <div class="card">
-        <select id="target-type" onchange="toggleTargetList()"><option value="user">Assign to: Person</option><option value="location">Assign to: Location</option></select>
-        <input type="text" id="assign-search" placeholder="Filter names..." onkeyup="filterAssignList()">
-        <select id="target-id" onchange="updateUI()"></select>
-        <select id="status-id"></select>
-    </div>
-
-    <div class="card">
         <div style="display:flex; justify-content:space-between; align-items:center;">
             <strong>Queue (<span id="count">0</span>)</strong>
             <button onclick="clearBatch()" style="font-size:11px; color:var(--danger); background:none; border:none;">Clear All</button>
         </div>
-        <div id="scan-list" style="max-height:250px; overflow-y:auto; margin-top:10px; border:1px solid var(--border); border-radius:8px;"></div>
-        
+        <div id="scan-list" style="max-height:180px; overflow-y:auto; margin-top:10px; border:1px solid var(--border); border-radius:8px;"></div>
+    </div>
+
+    <div class="card">
+        <select id="target-type" onchange="toggleTargetList()"><option value="user">Assign to: Person</option><option value="location">Assign to: Location</option></select>
+        <input type="text" id="assign-search" placeholder="Filter names..." onkeyup="filterAssignList()">
+        <select id="target-id" onchange="updateUI()"></select>
+        <select id="status-id"></select>
+
         <div id="batch-controls" style="display:none; flex-direction:column; gap:5px; margin-top:10px;">
             <button class="btn" style="background:var(--primary)" onclick="processBatch('IN')">Check-In All</button>
             <button class="btn" style="background:var(--danger)" onclick="processBatch('OUT')">Check-Out All</button>
@@ -117,12 +128,12 @@
     const PROXY_URL = "https://script.google.com/macros/s/AKfycbwui4ZEpgCNC08tSbNHh_JNz6YojbVl9GD5CpOCdsYkSJNC3pBrT3spyn2TjYCyUuOm9w/exec"; 
     let scannedQueue = [], users = [], locations = [], statusLabels = [];
     let isScanningLocked = false, infoMode = false, rangeMode = false;
-    let lastBeepTime = 0; // Throttling variable
+    let lastBeepTime = 0; 
 
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     function playBeep() {
         const now = Date.now();
-        if (now - lastBeepTime < 3000) return; // 3-second throttle logic
+        if (now - lastBeepTime < 2000) return; // DECREASED TO 2 SECONDS
         
         lastBeepTime = now;
         const osc = audioCtx.createOscillator();
@@ -135,7 +146,6 @@
         osc.start();
         osc.stop(audioCtx.currentTime + 0.1);
         
-        // Trigger Flash only when beeping
         const rEl = document.getElementById('reader');
         rEl.classList.remove('flash-active');
         void rEl.offsetWidth;
@@ -143,7 +153,7 @@
     }
 
     const scanner = new Html5Qrcode("reader");
-    scanner.start({ facingMode: "environment" }, { fps: 20, qrbox: { width: 250, height: 120 } }, onScanSuccess);
+    scanner.start({ facingMode: "environment" }, { fps: 20, qrbox: { width: 250, height: 100 } }, onScanSuccess);
 
     async function onScanSuccess(tag) {
         if (isScanningLocked) return;
@@ -179,7 +189,6 @@
             return;
         }
 
-        // Prevent adding same tag rapidly before the first request finishes
         if (scannedQueue.some(i => i.tag === cleanTag)) return;
 
         playBeep();
