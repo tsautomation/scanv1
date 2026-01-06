@@ -42,7 +42,18 @@
     </div>
     
     <div id="reader"></div>
-    <div id="status" style="text-align:center; padding:10px; font-size:14px; font-weight:bold; color: var(--secondary);">Connecting to Proxy...</div>
+    <div id="status" style="text-align:center; padding:10px; font-size:14px; font-weight:bold; color: var(--secondary);">Connecting...</div>
+
+    <div style="margin-top: 10px; text-align: center;">
+        <button onclick="toggleManualInput()" id="manual-toggle-btn" style="background:none; border:1px solid var(--border); color:var(--text); padding:8px 15px; border-radius:20px; font-size:12px; cursor:pointer;">⌨️ Manual Entry</button>
+    </div>
+
+    <div id="manual-input-container" class="card" style="display:none; border-style: dashed; padding: 10px; margin-top: 10px;">
+        <div style="display: flex; gap: 10px;">
+            <input type="text" id="manual-tag" placeholder="Type Asset Tag..." style="margin: 0; flex-grow: 1; text-transform: uppercase;">
+            <button onclick="addManualTag()" style="background: var(--secondary); color: white; border: none; border-radius: 8px; padding: 0 15px; font-weight: bold; cursor: pointer;">Add</button>
+        </div>
+    </div>
 
     <div class="card">
         <label><strong>1. Assign & Update Status</strong></label>
@@ -107,9 +118,22 @@
         const btn = document.getElementById("sound-toggle");
         if (soundEnabled) {
             btn.innerText = "🔊";
-            beep.volume = 0; // Gesture unlock
+            beep.volume = 0; 
             beep.play().then(() => { beep.pause(); beep.volume = 1; });
         } else { btn.innerText = "🔇"; }
+    }
+
+    function toggleManualInput() {
+        const container = document.getElementById('manual-input-container');
+        const btn = document.getElementById('manual-toggle-btn');
+        if (container.style.display === 'none') {
+            container.style.display = 'block';
+            btn.innerText = "❌ Close Manual";
+            document.getElementById('manual-tag').focus();
+        } else {
+            container.style.display = 'none';
+            btn.innerText = "⌨️ Manual Entry";
+        }
     }
 
     async function proxyRequest(endpoint, method = "GET", payload = null) {
@@ -136,7 +160,6 @@
     async function onScanSuccess(tag) {
         if (isScanningLocked) return;
         const cleanTag = tag.toString().toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
-        
         if (scannedQueue.some(i => i.tag === cleanTag)) return;
 
         isScanningLocked = true;
@@ -145,28 +168,46 @@
         try {
             const response = await proxyRequest(`/hardware/bytag/${cleanTag}`);
             let asset = response.id ? response : (response.rows && response.rows.length > 0 ? response.rows[0] : null);
-            
             if (asset && asset.id) {
                 if (!scannedQueue.some(i => i.tag === cleanTag)) {
-                    document.body.classList.add('flash-success');
-                    setTimeout(() => document.body.classList.remove('flash-success'), 800);
-                    
-                    if (soundEnabled) { beep.currentTime = 0; beep.play(); }
-
-                    scannedQueue.push({ 
-                        id: asset.id, tag: cleanTag, name: asset.model.name, 
-                        target_type: document.getElementById('target-type').value, 
-                        target_id: document.getElementById('target-id').value, 
-                        target_name: document.getElementById('target-id').options[document.getElementById('target-id').selectedIndex].text 
-                    });
-                    updateUI();
-                    statusDiv.innerText = "Added: " + cleanTag;
+                    processValidAsset(asset, cleanTag);
                 }
             } else { triggerFail(cleanTag); }
         } catch (e) { triggerFail(cleanTag); }
         finally {
             setTimeout(() => { isScanningLocked = false; statusDiv.innerText = "Scanner Ready"; }, 2000);
         }
+    }
+
+    async function addManualTag() {
+        const input = document.getElementById('manual-tag');
+        const tag = input.value.trim().toUpperCase();
+        if (!tag) return;
+        if (scannedQueue.some(i => i.tag === tag)) { alert("Already in list"); return; }
+
+        statusDiv.innerText = "Manual Lookup: " + tag;
+        try {
+            const response = await proxyRequest(`/hardware/bytag/${tag}`);
+            let asset = response.id ? response : (response.rows && response.rows.length > 0 ? response.rows[0] : null);
+            if (asset && asset.id) {
+                processValidAsset(asset, tag);
+                input.value = "";
+            } else { alert("Not found"); }
+        } catch (e) { alert("Lookup failed"); }
+    }
+
+    function processValidAsset(asset, tag) {
+        document.body.classList.add('flash-success');
+        setTimeout(() => document.body.classList.remove('flash-success'), 800);
+        if (soundEnabled) { beep.currentTime = 0; beep.play(); }
+        scannedQueue.push({ 
+            id: asset.id, tag: tag, name: asset.model.name, 
+            target_type: document.getElementById('target-type').value, 
+            target_id: document.getElementById('target-id').value, 
+            target_name: document.getElementById('target-id').options[document.getElementById('target-id').selectedIndex].text 
+        });
+        updateUI();
+        statusDiv.innerText = "Added: " + tag;
     }
 
     function triggerFail(tag) {
@@ -257,7 +298,7 @@
         saveBatchToAuditLog(auditData);
         await proxyRequest("email-log", "POST", auditData);
 
-        statusDiv.innerText = "Batch Processed Successfully!";
+        statusDiv.innerText = "Batch Processed!";
         scannedQueue = []; updateUI();
         document.getElementById('progress-container').style.display = 'none';
     }
@@ -273,7 +314,7 @@
         const logs = JSON.parse(localStorage.getItem('snipe_audit') || '[]');
         document.getElementById('audit-modal').style.display = 'block';
         document.getElementById('audit-log-content').innerHTML = logs.map(l => `
-            <div style="border-bottom:1px solid #444; padding:12px 0;">
+            <div style="border-bottom:1px solid #444; padding:10px 0;">
                 <small>${l.timestamp}</small><br><strong>${l.action}</strong> (${l.count} items)
                 <div style="font-size:10px; opacity:0.7;">${l.details.join('<br>')}</div>
             </div>`).join('');
@@ -291,6 +332,8 @@
         const theme = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
         document.documentElement.setAttribute("data-theme", theme);
     }
+
+    document.getElementById('manual-tag').addEventListener('keypress', (e) => { if(e.key === 'Enter') addManualTag(); });
 
     loadResources();
 </script>
