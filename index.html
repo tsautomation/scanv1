@@ -12,7 +12,7 @@
         }
         [data-theme="dark"] { --bg: #121212; --card-bg: #1e1e1e; --text: #e0e0e0; --border: #333333; }
         
-        body { background: var(--bg); color: var(--text); font-family: -apple-system, system-ui, sans-serif; margin: 0; padding-bottom: 80px; }
+        body { background: var(--bg); color: var(--text); font-family: -apple-system, system-ui, sans-serif; margin: 0; padding-bottom: 80px; overflow-x: hidden; }
         .container { padding: 15px; max-width: 500px; margin: auto; }
         
         #reader { width: 100%; border-radius: 12px; overflow: hidden; background: #000; border: 2px solid var(--border); }
@@ -23,15 +23,14 @@
             width: 100%; padding: 10px; margin: 4px 0; border-radius: 8px; font-size: 16px; box-sizing: border-box; 
         }
 
-        .btn { padding: 15px; border: none; border-radius: 8px; color: white; font-weight: bold; width: 100%; margin-top: 10px; font-size: 14px; cursor: pointer; }
+        .btn { padding: 15px; border: none; border-radius: 8px; color: white; font-weight: bold; width: 100%; margin-top: 10px; font-size: 14px; cursor: pointer; display: block; text-align: center; }
         
         .scan-item { padding: 12px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: 10px; }
         .tag-info { flex: 1; min-width: 0; }
         .tag-main { font-weight: bold; font-size: 15px; display: block; }
-        .tag-subtext { font-size: 12px; color: var(--secondary); display: block; }
+        .tag-subtext { font-size: 12px; color: var(--secondary); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-        /* Range Highlight UI */
-        .range-step-active { border: 2px solid var(--secondary) !important; background: rgba(52, 152, 219, 0.1); }
+        .range-step-active { border: 2px solid var(--secondary) !important; background: rgba(52, 152, 219, 0.1) !important; }
 
         #info-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:4000; justify-content:center; align-items:center; }
         .info-card { background:var(--card-bg); width:85%; max-width:380px; border-radius:15px; padding:20px; border-top: 5px solid var(--warning); }
@@ -40,12 +39,15 @@
         .info-val { font-size:14px; color: var(--text); }
 
         #loading-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:5000; color:white; flex-direction:column; justify-content:center; align-items:center; }
-        @keyframes spin { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
     </style>
 </head>
 <body>
 
-<div id="loading-overlay"><div style="border:4px solid #fff; border-left-color:var(--secondary); width:30px; height:30px; border-radius:50%; animation:spin 1s linear infinite;"></div><div id="loading-msg" style="margin-top:15px;">Processing...</div></div>
+<div id="loading-overlay">
+    <div style="border:4px solid #fff; border-left-color:var(--secondary); width:30px; height:30px; border-radius:50%; animation:spin 1s linear infinite;"></div>
+    <div id="loading-msg" style="margin-top:15px;">Processing...</div>
+</div>
+<style>@keyframes spin { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }</style>
 
 <div id="info-modal"><div class="info-card"><div id="info-fields"></div><button onclick="closeInfoModal()" class="btn" style="background:var(--secondary); width:100%;">Close</button></div></div>
 
@@ -64,32 +66,47 @@
         <button onclick="toggleSection('range-box')" style="flex:1; padding:10px; font-size:11px; border-radius:8px; border:1px solid var(--border); background:var(--card-bg);">🔢 Range</button>
     </div>
 
+    <div id="manual-single" class="card" style="display:none; border-style:dashed;">
+        <input type="text" id="manual-tag" placeholder="Type Asset Tag..." style="text-transform:uppercase;">
+        <button onclick="addManualTag()" class="btn" style="background:var(--secondary); width:100%;">Add to Queue</button>
+    </div>
+
     <div id="range-box" class="card" style="display:none; border-style:dashed;">
-        <div id="range-status" style="font-size:13px; text-align:center; padding:10px; border-radius:5px; margin-bottom:10px; font-weight:bold; color: var(--secondary);">
+        <div id="range-status" style="font-size:12px; text-align:center; padding:8px; margin-bottom:10px; font-weight:bold; background:rgba(52, 152, 219, 0.1); border-radius:5px;">
             Step 1: Scan START Tag
         </div>
         <div style="display: flex; gap: 5px;">
-            <input type="text" id="range-start-input" placeholder="Start Tag" style="text-transform:uppercase;" class="range-step-active">
+            <input type="text" id="range-start-input" placeholder="Start Tag" style="text-transform:uppercase;">
             <input type="text" id="range-end-input" placeholder="End Tag" style="text-transform:uppercase;">
         </div>
-        <button id="range-confirm-btn" onclick="manualRangeSubmit()" class="btn" style="background:var(--primary); width:100%;">Process Range</button>
-        <button onclick="exitRangeMode()" class="btn" style="background:var(--danger); width:100%; padding:8px; font-size:11px;">Cancel Range</button>
+        <button onclick="manualRangeSubmit()" class="btn" style="background:var(--primary); width:100%;">Process Range</button>
+        <button onclick="exitRangeMode()" class="btn" style="background:var(--danger); width:100%; padding:8px; font-size:11px;">Cancel</button>
     </div>
 
     <div class="card">
-        <select id="target-type" onchange="toggleTargetList()"><option value="user">User</option><option value="location">Location</option></select>
-        <input type="text" id="assign-search" placeholder="Filter..." onkeyup="filterAssignList()">
+        <label style="font-size:10px; font-weight:bold;">ASSIGN TO TYPE</label>
+        <select id="target-type" onchange="toggleTargetList()">
+            <option value="user">Person</option>
+            <option value="location">Location</option>
+        </select>
+        <label style="font-size:10px; font-weight:bold; margin-top:10px; display:block;">SEARCH NAME</label>
+        <input type="text" id="assign-search" placeholder="Filter names..." onkeyup="filterAssignList()">
         <select id="target-id" onchange="updateUI()"></select>
+        <label style="font-size:10px; font-weight:bold; margin-top:10px; display:block;">SET STATUS</label>
         <select id="status-id"></select>
     </div>
 
     <div class="card">
-        <strong>Queue (<span id="count">0</span>)</strong>
-        <div id="scan-list" style="max-height:250px; overflow-y:auto; margin-top:10px;"></div>
-        <div id="batch-controls" style="display:none; flex-direction:column;">
-            <button class="btn" style="background:var(--primary)" onclick="processBatch('IN')">Check-In</button>
-            <button class="btn" style="background:var(--danger)" onclick="processBatch('OUT')">Check-Out</button>
-            <button class="btn" style="background:var(--warning); color:#222" onclick="processBatch('AUDIT')">Audit</button>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <strong>Queue (<span id="count">0</span>)</strong>
+            <button onclick="clearBatch()" style="font-size:11px; color:var(--danger); background:none; border:none;">Clear All</button>
+        </div>
+        <div id="scan-list" style="max-height:250px; overflow-y:auto; margin-top:10px; border:1px solid var(--border); border-radius:8px;"></div>
+        
+        <div id="batch-controls" style="display:none; flex-direction:column; gap:5px; margin-top:10px;">
+            <button class="btn" style="background:var(--primary)" onclick="processBatch('IN')">Check-In Batch</button>
+            <button class="btn" style="background:var(--danger)" onclick="processBatch('OUT')">Check-Out Batch</button>
+            <button class="btn" style="background:var(--warning); color:#222" onclick="processBatch('AUDIT')">Official Audit</button>
         </div>
     </div>
 </div>
@@ -122,15 +139,12 @@
                 startIn.value = cleanTag;
                 startIn.classList.remove('range-step-active');
                 endIn.classList.add('range-step-active');
-                document.getElementById('range-status').innerHTML = "✅ START Set: " + cleanTag + "<br>Now Scan END Tag";
-                
-                // 1.5 second pause to move camera
-                setTimeout(() => { isScanningLocked = false; }, 1500);
-            } else if (!endIn.value) {
-                if (cleanTag === startIn.value) return; // Prevent same tag range
+                document.getElementById('range-status').innerHTML = "✅ START: " + cleanTag + "<br>Now Scan END Tag";
+                setTimeout(() => { isScanningLocked = false; }, 1500); // 1.5s Pause
+            } else if (!endIn.value && cleanTag !== startIn.value) {
+                isScanningLocked = true;
                 endIn.value = cleanTag;
-                document.getElementById('range-status').innerHTML = "✅ Range Captured!<br>Tap 'Process' to confirm.";
-                isScanningLocked = true; // Lock scanning until processed or reset
+                document.getElementById('range-status').innerHTML = "✅ Range Ready!<br>Click 'Process' to search.";
             }
             return;
         }
@@ -147,21 +161,24 @@
             if (asset) {
                 scannedQueue.push({ id: asset.id, tag: tag, name: asset.model.name });
                 updateUI();
-            }
+            } else { alert("Not Found: " + tag); }
         } finally { setTimeout(() => { isScanningLocked = false; }, 1000); }
     }
 
     async function manualRangeSubmit() {
         const start = document.getElementById('range-start-input').value.toUpperCase();
         const end = document.getElementById('range-end-input').value.toUpperCase();
-        if (!start || !end) return alert("Scan or enter both tags first.");
+        if (!start || !end) return alert("Please provide both tags.");
 
-        showLoading("Fetching Range Assets...");
+        showLoading("Generating Range...");
         const prefix = start.match(/^[A-Z]*/)[0];
-        const sNum = parseInt(start.match(/\d+/)[0]);
-        const eNum = parseInt(end.match(/\d+/)[0]);
+        const sMatch = start.match(/\d+/);
+        const eMatch = end.match(/\d+/);
+        if(!sMatch || !eMatch) return alert("Invalid Tag Format");
+
+        const sNum = parseInt(sMatch[0]), eNum = parseInt(eMatch[0]);
         const low = Math.min(sNum, eNum), high = Math.max(sNum, eNum);
-        const pad = start.match(/\d+/)[0].length;
+        const pad = sMatch[0].length;
 
         for (let i = low; i <= high; i++) {
             const currentTag = prefix + i.toString().padStart(pad, '0');
@@ -174,24 +191,6 @@
         updateUI(); hideLoading(); exitRangeMode();
     }
 
-    function toggleSection(id) {
-        document.getElementById('manual-single').style.display = 'none';
-        document.getElementById('range-box').style.display = id === 'range-box' ? 'block' : 'none';
-        rangeMode = (id === 'range-box');
-        if(rangeMode) resetRangeUI();
-    }
-
-    function resetRangeUI() {
-        document.getElementById('range-start-input').value = '';
-        document.getElementById('range-end-input').value = '';
-        document.getElementById('range-start-input').classList.add('range-step-active');
-        document.getElementById('range-end-input').classList.remove('range-step-active');
-        document.getElementById('range-status').innerHTML = "Step 1: Scan START Tag";
-        isScanningLocked = false;
-    }
-
-    function exitRangeMode() { rangeMode = false; document.getElementById('range-box').style.display = 'none'; isScanningLocked = false; }
-
     function updateUI() {
         const sel = document.getElementById('target-id');
         const target = sel.options[sel.selectedIndex]?.text || "...";
@@ -199,9 +198,9 @@
             <div class="scan-item">
                 <div class="tag-info">
                     <span class="tag-main">${item.tag}</span>
-                    <span class="tag-subtext">(${item.name}) ➔ ${target}</span>
+                    <span class="tag-subtext">${item.name} ➔ ${target}</span>
                 </div>
-                <button onclick="removeFromQueue(${idx})" style="border:none; background:none; color:var(--danger); font-size:20px;">&times;</button>
+                <button onclick="removeFromQueue(${idx})" style="border:none; background:none; color:var(--danger); font-size:24px;">&times;</button>
             </div>`).join('');
         document.getElementById('batch-controls').style.display = scannedQueue.length > 0 ? 'flex' : 'none';
         document.getElementById('count').innerText = scannedQueue.length;
@@ -209,7 +208,7 @@
 
     async function processBatch(type) {
         if (!scannedQueue.length) return;
-        showLoading("Processing...");
+        showLoading("Syncing...");
         const tId = document.getElementById('target-id').value;
         const tType = document.getElementById('target-type').value;
         const sId = document.getElementById('status-id').value;
@@ -220,7 +219,7 @@
             else if (type === 'IN') { ep = `/hardware/${asset.id}/checkin`; p = { status_id: sId }; }
             await proxyRequest(ep, m, p);
         }
-        alert("Batch Complete"); scannedQueue = []; updateUI(); hideLoading();
+        alert("Success!"); scannedQueue = []; updateUI(); hideLoading();
     }
 
     function filterAssignList() {
@@ -232,26 +231,49 @@
         updateUI();
     }
 
-    function displayInfo(asset, tag) {
-        if (!asset) { alert("Not found"); closeInfoModal(); return; }
-        const rows = [
-            {l: "Tag", v: asset.asset_tag}, {l: "Status", v: asset.status_label?.name},
-            {l: "Location", v: asset.location?.name || asset.default_location?.name},
-            {l: "Audit", v: asset.last_audit_date?.formatted || 'N/A'},
-            {l: "Out", v: asset.last_checkout?.formatted || 'N/A'}
-        ];
-        document.getElementById('info-fields').innerHTML = rows.map(r => `<div class="info-row"><span class="info-label">${r.l}</span><span class="info-val">${r.v || 'None'}</span></div>`).join('');
-        document.getElementById('info-modal').style.display = 'flex';
-    }
-
     async function proxyRequest(e, m="GET", p=null) { 
         const r = await fetch(PROXY_URL, {method:'POST', body:JSON.stringify({endpoint:e, method:m, payload:p})}); 
         return r.json(); 
     }
 
-    function startInfoScan() { infoMode = true; document.getElementById('info-btn').style.background = "var(--warning)"; }
-    function closeInfoModal() { document.getElementById('info-modal').style.display = 'none'; infoMode = false; isScanningLocked = false; document.getElementById('info-btn').style.background = "var(--card-bg)"; }
+    function toggleSection(id) {
+        document.getElementById('manual-single').style.display = 'none';
+        document.getElementById('range-box').style.display = 'none';
+        document.getElementById(id).style.display = 'block';
+        rangeMode = (id === 'range-box');
+        if(rangeMode) {
+            document.getElementById('range-start-input').value = '';
+            document.getElementById('range-end-input').value = '';
+            document.getElementById('range-start-input').classList.add('range-step-active');
+            document.getElementById('range-end-input').classList.remove('range-step-active');
+            document.getElementById('range-status').innerHTML = "Step 1: Scan START Tag";
+        }
+    }
+
+    function startInfoScan() { 
+        infoMode = true; 
+        document.getElementById('info-btn').style.background = "var(--warning)"; 
+        document.getElementById('status').innerText = "Info Mode: Scan Tag";
+    }
+
+    function displayInfo(asset, tag) {
+        if (!asset) { alert("Not found"); closeInfoModal(); return; }
+        const rows = [
+            {l: "Tag", v: asset.asset_tag}, {l: "Status", v: asset.status_label?.name},
+            {l: "Location", v: asset.location?.name || asset.default_location?.name},
+            {l: "Model", v: asset.model?.name}, 
+            {l: "Audit", v: asset.last_audit_date?.formatted || 'N/A'},
+            {l: "In Date", v: asset.checkin_date?.formatted || 'N/A'}
+        ];
+        document.getElementById('info-fields').innerHTML = rows.map(r => `<div class="info-row"><span class="info-label">${r.l}</span><span class="info-val">${r.v || 'None'}</span></div>`).join('');
+        document.getElementById('info-modal').style.display = 'flex';
+    }
+
+    function closeInfoModal() { document.getElementById('info-modal').style.display = 'none'; infoMode = false; isScanningLocked = false; document.getElementById('info-btn').style.background = "var(--card-bg)"; document.getElementById('status').innerText = "Ready"; }
+    function addManualTag() { const t = document.getElementById('manual-tag').value.toUpperCase(); if(t) addAssetToQueue(t); document.getElementById('manual-tag').value = ''; }
     function removeFromQueue(i) { scannedQueue.splice(i, 1); updateUI(); }
+    function clearBatch() { scannedQueue = []; updateUI(); }
+    function exitRangeMode() { rangeMode = false; document.getElementById('range-box').style.display = 'none'; }
     function showLoading(m) { document.getElementById('loading-msg').innerText = m; document.getElementById('loading-overlay').style.display = 'flex'; }
     function hideLoading() { document.getElementById('loading-overlay').style.display = 'none'; }
     function toggleDarkMode() { document.documentElement.setAttribute("data-theme", document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark"); }
@@ -263,10 +285,11 @@
             toggleTargetList();
             document.getElementById('status-id').innerHTML = statusLabels.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
             document.getElementById('status').innerText = "Ready";
-        } catch (e) { document.getElementById('status').innerText = "Error"; }
+        } catch (e) { document.getElementById('status').innerText = "Connection Error"; }
     }
 
     function toggleTargetList() { document.getElementById('assign-search').value = ''; filterAssignList(); }
+
     loadResources();
 </script>
 </body>
