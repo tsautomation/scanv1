@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SnipeScan Pro</title>
+    <link rel="manifest" href="manifest.json">
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        :root { --bg: #f8f9fa; --card-bg: #ffffff; --text: #2c3e50; --border: #dddddd; --primary: #2ecc71; --secondary: #3498db; --danger: #e74c3c; --warning: #f39c12; }
+        [data-theme="dark"] { --bg: #121212; --card-bg: #1e1e1e; --text: #e0e0e0; --border: #333333; }
+        body { background: var(--bg); color: var(--text); font-family: -apple-system, system-ui, sans-serif; margin: 0; transition: 0.3s; touch-action: manipulation; }
+        .container { padding: 15px; max-width: 500px; margin: auto; }
+        #reader { width: 100%; border-radius: 12px; overflow: hidden; background: #000; }
+        .card { background: var(--card-bg); padding: 15px; border-radius: 12px; margin-top: 15px; border: 1px solid var(--border); box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        input, select { background: var(--card-bg); color: var(--text); border: 1px solid var(--border); width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; font-size: 16px; box-sizing: border-box; }
+        .btn { padding: 15px; border: none; border-radius: 8px; color: white; font-weight: bold; width: 100%; margin-top: 10px; font-size: 16px; cursor: pointer; }
+        .btn-in { background: var(--primary); }
+        .btn-out { background: var(--danger); }
+        .btn-audit { background: var(--secondary); }
+        .scan-item { padding: 12px; border-bottom: 1px solid var(--border); transition: background 0.3s; }
+        .status-tag { font-size: 11px; color: var(--secondary); display: block; margin-top: 4px; }
+        #progress-bar { height: 10px; background: var(--secondary); width: 0%; border-radius: 5px; transition: width 0.3s; }
+        .search-result { padding: 10px; border-bottom: 1px solid var(--border); cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h2 style="margin: 0;">📦 SnipeScan Pro</h2>
+        <button onclick="toggleDarkMode()" id="theme-toggle" style="background:none; border:none; font-size: 24px; cursor:pointer;">🌙</button>
+    </div>
+    
+    <div id="reader" style="margin-top:15px;"></div>
+    <div id="status" style="text-align:center; padding:10px; font-size:14px;">Initializing...</div>
+
+    <div class="card">
+        <label><strong>1. Set Global Default Target</strong></label>
+        <select id="target-type" onchange="toggleTargetList()">
+            <option value="user">Check out to: Person</option>
+            <option value="location">Check out to: Location</option>
+        </select>
+        <select id="target-id"></select>
+        <button onclick="applyGlobalToAll()" style="background: var(--warning); border:none; color:white; padding:8px; border-radius:5px; width:100%; font-size:11px; margin-top:5px;">🔄 Update All Scanned to This Target</button>
+        
+        <div id="checkin-options" style="margin-top:10px;">
+            <label><strong>Check-in Status:</strong></label>
+            <select id="status-id"></select>
+        </div>
+    </div>
+
+    <div class="card">
+        <input type="text" id="search-input" placeholder="Manual Search (Name/Serial)..." oninput="debounceSearch()">
+        <div id="search-results"></div>
+        
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:15px;">
+            <strong>Queue (<span id="count">0</span>/100)</strong>
+            <button onclick="exportToCSV()" style="font-size:11px; background:#95a5a6; color:white; border:none; padding:5px 10px; border-radius:4px;">💾 CSV Backup</button>
+        </div>
+        
+        <div id="scan-list" style="margin-top:10px; max-height:250px; overflow-y:auto;"></div>
+
+        <div id="progress-container" style="display:none; margin-top:15px;">
+            <div style="background:var(--border); border-radius:5px;"><div id="progress-bar"></div></div>
+            <div id="progress-text" style="font-size:11px; text-align:center; margin-top:5px;"></div>
+        </div>
+
+        <div id="batch-controls" style="display:none;">
+            <button class="btn btn-out" onclick="processBatch('OUT')">Check Out Batch</button>
+            <button class="btn btn-in" onclick="processBatch('IN')">Check In Batch</button>
+            <button class="btn btn-audit" onclick="processBatch('AUDIT')">Audit Batch</button>
+            <button onclick="clearBatch()" style="background:none; border:none; color:var(--danger); width:100%; margin-top:10px; font-size:12px;">Clear All</button>
+        </div>
+    </div>
+</div>
+
+<audio id="beep" src="https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3" preload="auto"></audio>
+
+<script>
+    const PROXY_URL = "https://script.google.com/macros/s/AKfycbwC1w3ymZQ6t4u4_V3o38gOWg3_LDSKxHwnpk4C9VxUpKUC2kPQVJwGV3Z9UfxmQC7mKg/exec";
+
+    let scannedQueue = [], users = [], locations = [], statusLabels = [];
+    const beep = document.getElementById("beep"), statusDiv = document.getElementById("status");
+
+    const scanner = new Html5Qrcode("reader");
+    scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, onScanSuccess);
+
+    async function proxyRequest(endpoint, method = "GET", payload = null) {
+        const res = await fetch(PROXY_URL, {
+            method: 'POST',
+            body: JSON.stringify({ endpoint, method, payload })
+        });
+        return res.json();
+    }
+
+    async function loadResources() {
+        try {
+            const [u, l, s] = await Promise.all([
+                proxyRequest('/users?limit=500'),
+                proxyRequest('/locations?limit=500'),
+                proxyRequest('/statuslabels')
+            ]);
+            users = u.rows; locations = l.rows; statusLabels = s.rows;
+            toggleTargetList();
+            document.getElementById('status-id').innerHTML = statusLabels.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+            statusDiv.innerText = "Scanner Ready";
+        } catch (e) { statusDiv.innerText = "Error loading data."; }
+    }
+
+    function toggleTargetList() {
+        const type = document.getElementById('target-type').value;
+        const list = (type === 'user') ? users : locations;
+        document.getElementById('target-id').innerHTML = list.map(i => `<option value="${i.id}">${i.name || i.display_name}</option>`).join('');
+    }
+
+    async function onScanSuccess(tag) {
+        if (scannedQueue.length >= 100 || scannedQueue.some(i => i.tag === tag)) return;
+        statusDiv.innerText = "Looking up " + tag + "...";
+        try {
+            const data = await proxyRequest(`/hardware/bytag/${tag}`);
+            if (data.id) {
+                beep.play();
+                const gType = document.getElementById('target-type').value;
+                const gId = document.getElementById('target-id').value;
+                const gName = document.getElementById('target-id').options[document.getElementById('target-id').selectedIndex].text;
+
+                scannedQueue.push({ 
+                    id: data.id, tag: tag, name: data.model.name, 
+                    target_type: gType, target_id: gId, target_name: gName 
+                });
+                updateUI();
+                statusDiv.innerText = "Added: " + tag;
+            } else { statusDiv.innerText = "Tag not found."; }
+        } catch (e) { statusDiv.innerText = "Lookup error."; }
+    }
+
+    function updateUI() {
+        const listEl = document.getElementById('scan-list');
+        listEl.innerHTML = scannedQueue.map((item, idx) => `
+            <div id="item-${idx}" class="scan-item">
+                <div style="display:flex; justify-content:space-between;">
+                    <span><span class="icon">⏳</span> <strong>${item.tag}</strong></span>
+                    <button onclick="removeFromQueue(${idx})" style="border:none; background:none; color:var(--danger);">×</button>
+                </div>
+                <span class="status-tag">Destination: ${item.target_name} <button onclick="editItemTarget(${idx})" style="font-size:9px; border:none; background:var(--border); border-radius:3px; padding:2px 5px; color:var(--text);">Edit</button></span>
+            </div>`).join('');
+        document.getElementById('batch-controls').style.display = scannedQueue.length > 0 ? 'block' : 'none';
+        document.getElementById('count').innerText = scannedQueue.length;
+    }
+
+    function editItemTarget(idx) {
+        const gName = document.getElementById('target-id').options[document.getElementById('target-id').selectedIndex].text;
+        if (confirm(`Change this item's target to: ${gName}?`)) {
+            scannedQueue[idx].target_type = document.getElementById('target-type').value;
+            scannedQueue[idx].target_id = document.getElementById('target-id').value;
+            scannedQueue[idx].target_name = gName;
+            updateUI();
+        }
+    }
+
+    function applyGlobalToAll() {
+        if (!confirm("Apply global target to ALL items in queue?")) return;
+        const gType = document.getElementById('target-type').value;
+        const gId = document.getElementById('target-id').value;
+        const gName = document.getElementById('target-id').options[document.getElementById('target-id').selectedIndex].text;
+        scannedQueue.forEach(i => { i.target_type = gType; i.target_id = gId; i.target_name = gName; });
+        updateUI();
+    }
+
+    async function processBatch(action) {
+        document.getElementById('progress-container').style.display = 'block';
+        const total = scannedQueue.length;
+        const sId = document.getElementById('status-id').value;
+
+        for (let i = 0; i < total; i++) {
+            const item = scannedQueue[i];
+            const listItem = document.getElementById(`item-${i}`);
+            document.getElementById('progress-bar').style.width = ((i+1)/total*100) + "%";
+            document.getElementById('progress-text').innerText = `Syncing ${i+1}/${total}...`;
+
+            let endpoint = `/hardware/${item.id}/${action === 'IN' ? 'checkin' : 'checkout'}`;
+            let payload = action === 'IN' ? { status_id: sId } : { checkout_to_type: item.target_type, [`assigned_${item.target_type}`]: item.target_id };
+            
+            if (action === 'AUDIT') {
+                endpoint = `/hardware/audit`;
+                payload = { asset_tag: item.tag, location_id: item.target_id, note: "Batch Audit" };
+            }
+
+            try {
+                const res = await proxyRequest(endpoint, "POST", payload);
+                if (listItem) {
+                    listItem.style.background = res.status === "success" ? "#c8e6c9" : "#ffcdd2";
+                    listItem.querySelector('.icon').innerText = res.status === "success" ? "✅" : "❌";
+                }
+                await new Promise(r => setTimeout(r, 600)); 
+            } catch (e) { if (listItem) listItem.style.background = "#ffcdd2"; }
+        }
+        statusDiv.innerText = "Sync Complete.";
+    }
+
+    let searchTimeout;
+    function debounceSearch() {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(async () => {
+            const q = document.getElementById('search-input').value;
+            if (q.length < 3) return;
+            const d = await proxyRequest(`/hardware?search=${q}&limit=5`);
+            document.getElementById('search-results').innerHTML = d.rows.map(a => `
+                <div class="search-result" onclick="onScanSuccess('${a.asset_tag}')">
+                    <strong>${a.asset_tag}</strong> - ${a.model.name}
+                </div>`).join('');
+        }, 500);
+    }
+
+    function toggleDarkMode() {
+        const theme = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+        document.documentElement.setAttribute("data-theme", theme);
+        localStorage.setItem("theme", theme);
+        document.getElementById("theme-toggle").innerText = theme === "dark" ? "☀️" : "🌙";
+    }
+
+    function exportToCSV() {
+        let csv = "Asset Tag,Model,Target\n" + scannedQueue.map(i => `${i.tag},${i.name},${i.target_name}`).join("\n");
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'inventory_backup.csv'; a.click();
+    }
+
+    if (localStorage.getItem("theme") === "dark") toggleDarkMode();
+    function removeFromQueue(idx) { scannedQueue.splice(idx, 1); updateUI(); }
+    function clearBatch() { if(confirm("Clear list?")) { scannedQueue = []; updateUI(); } }
+    loadResources();
+</script>
+</body>
+</html>
