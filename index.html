@@ -16,13 +16,11 @@
         .btn { padding: 15px; border: none; border-radius: 8px; color: white; font-weight: bold; width: 100%; margin-top: 10px; font-size: 16px; cursor: pointer; }
         .btn-in { background: var(--primary); }
         .btn-out { background: var(--danger); }
-        .btn-audit { background: var(--secondary); }
-        
+        .btn-audit { background: var(--warning); color: #000; }
         .flash-success { animation: flash-green 0.8s; }
         .flash-fail { animation: flash-red 0.8s; }
         @keyframes flash-green { 0% { background-color: #2ecc71; } 100% { background-color: var(--bg); } }
         @keyframes flash-red { 0% { background-color: #e74c3c; } 100% { background-color: var(--bg); } }
-
         .scan-item { padding: 12px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
         .tag-info { font-size: 14px; }
         .tag-subtext { font-size: 11px; color: #7f8c8d; display: block; }
@@ -48,8 +46,8 @@
             <option value="location">Assign to: Location</option>
         </select>
         <select id="target-id"></select>
-        <select id="status-id" title="Status Label"></select>
-        <button onclick="applyGlobalToAll()" style="background: var(--warning); border:none; color:white; padding:8px; border-radius:5px; width:100%; font-size:11px; margin-top:5px; cursor:pointer;">🔄 Apply to Queue</button>
+        <select id="status-id"></select>
+        <button onclick="applyGlobalToAll()" style="background: #95a5a6; border:none; color:white; padding:8px; border-radius:5px; width:100%; font-size:11px; margin-top:5px;">🔄 Apply selection to all in queue</button>
     </div>
 
     <div class="card">
@@ -72,7 +70,7 @@
     </div>
 
     <div class="card" style="background: rgba(0,0,0,0.02); border-style: dashed;">
-        <button onclick="showAuditLogs()" style="background:var(--secondary); color:white; border:none; padding:10px; border-radius:8px; width:100%; cursor:pointer;">📊 View Past Batch Logs</button>
+        <button onclick="showAuditLogs()" style="background:var(--secondary); color:white; border:none; padding:10px; border-radius:8px; width:100%;">📊 View History Logs</button>
     </div>
 </div>
 
@@ -88,11 +86,12 @@
     const PROXY_URL = "https://script.google.com/macros/s/AKfycbwui4ZEpgCNC08tSbNHh_JNz6YojbVl9GD5CpOCdsYkSJNC3pBrT3spyn2TjYCyUuOm9w/exec"; 
 
     let scannedQueue = [], users = [], locations = [], statusLabels = [];
-    let lastScannedTag = null, lastScannedTime = 0;
+    let isScanningLocked = false; 
     const beep = document.getElementById("beep"), statusDiv = document.getElementById("status");
 
     const scanner = new Html5Qrcode("reader");
-    scanner.start({ facingMode: "environment" }, { fps: 20, qrbox: { width: 250, height: 150 } }, onScanSuccess);
+    // Narrower QR box height (100px) to make it harder to hit two barcodes at once
+    scanner.start({ facingMode: "environment" }, { fps: 20, qrbox: { width: 250, height: 100 } }, onScanSuccess);
 
     async function proxyRequest(endpoint, method = "GET", payload = null) {
         const res = await fetch(PROXY_URL, { method: 'POST', body: JSON.stringify({ endpoint, method, payload }) });
@@ -116,58 +115,66 @@
     }
 
     async function onScanSuccess(tag) {
+        if (isScanningLocked) return; // Ignore if processing
+
         const cleanTag = tag.toString().toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
-        const now = Date.now();
         
-        // 1. Duplicate Guard Restored
-        if (cleanTag === lastScannedTag && (now - lastScannedTime) < 2500) return;
+        // Immediate Queue Check
         if (scannedQueue.some(i => i.tag === cleanTag)) return;
 
-        lastScannedTag = cleanTag; lastScannedTime = now;
-        statusDiv.innerText = "Searching: " + cleanTag;
+        isScanningLocked = true; // LOCK!
+        statusDiv.innerText = "Looking up: " + cleanTag;
 
         try {
             const response = await proxyRequest(`/hardware/bytag/${cleanTag}`);
             let asset = response.id ? response : (response.rows && response.rows.length > 0 ? response.rows[0] : null);
+            
             if (asset && asset.id) {
-                document.body.classList.add('flash-success');
-                setTimeout(() => document.body.classList.remove('flash-success'), 800);
-                beep.play();
-                scannedQueue.push({ 
-                    id: asset.id, tag: cleanTag, name: asset.model.name, 
-                    target_type: document.getElementById('target-type').value, 
-                    target_id: document.getElementById('target-id').value, 
-                    target_name: document.getElementById('target-id').options[document.getElementById('target-id').selectedIndex].text 
-                });
-                updateUI();
-                statusDiv.innerText = "Added: " + cleanTag;
+                // Second check after API return to prevent rare race condition
+                if (!scannedQueue.some(i => i.tag === cleanTag)) {
+                    document.body.classList.add('flash-success');
+                    setTimeout(() => document.body.classList.remove('flash-success'), 800);
+                    beep.play();
+                    
+                    scannedQueue.push({ 
+                        id: asset.id, tag: cleanTag, name: asset.model.name, 
+                        target_type: document.getElementById('target-type').value, 
+                        target_id: document.getElementById('target-id').value, 
+                        target_name: document.getElementById('target-id').options[document.getElementById('target-id').selectedIndex].text 
+                    });
+                    updateUI();
+                    statusDiv.innerText = "Added: " + cleanTag;
+                }
             } else { triggerFail(cleanTag); }
         } catch (e) { triggerFail(cleanTag); }
+        finally {
+            // Keep locked for 2 seconds to allow user to move camera away
+            setTimeout(() => { isScanningLocked = false; statusDiv.innerText = "Scanner Ready"; }, 2000);
+        }
     }
 
     function triggerFail(tag) {
         document.body.classList.add('flash-fail');
         setTimeout(() => document.body.classList.remove('flash-fail'), 800);
-        statusDiv.innerText = "Asset Not Found: " + tag;
+        statusDiv.innerText = "Asset " + tag + " not found";
     }
 
     function updateUI() {
         const listEl = document.getElementById('scan-list');
-        // 2. Delete (X) Button Restored
         listEl.innerHTML = scannedQueue.map((item, idx) => `
             <div class="scan-item">
                 <div class="tag-info">
                     <strong>${item.tag}</strong>
                     <span class="tag-subtext">${item.name} ➔ ${item.target_name}</span>
                 </div>
-                <button onclick="removeFromQueue(${idx})" style="border:none; background:none; color:var(--danger); font-size:20px; padding:5px;">&times;</button>
+                <button onclick="removeFromQueue(${idx})" style="border:none; background:none; color:var(--danger); font-size:24px; padding:5px;">&times;</button>
             </div>`).join('');
         document.getElementById('batch-controls').style.display = scannedQueue.length > 0 ? 'block' : 'none';
         document.getElementById('count').innerText = scannedQueue.length;
     }
 
     function removeFromQueue(idx) { scannedQueue.splice(idx, 1); updateUI(); }
-    function clearBatch() { if(confirm("Clear queue?")) { scannedQueue = []; updateUI(); } }
+    function clearBatch() { if(confirm("Clear current queue?")) { scannedQueue = []; updateUI(); } }
 
     async function processBatch(action) {
         if (!confirm(`Run ${action} for ${scannedQueue.length} items?`)) return;
@@ -177,17 +184,16 @@
         for (let i = 0; i < scannedQueue.length; i++) {
             const item = scannedQueue[i];
             document.getElementById('progress-bar').style.width = ((i+1)/scannedQueue.length*100) + "%";
-            document.getElementById('progress-text').innerText = `Processing ${i+1}...`;
+            document.getElementById('progress-text').innerText = `Syncing ${i+1}/${scannedQueue.length}...`;
 
-            let endpoint, payload, method = "POST";
+            let endpoint, payload;
             
-            // 3. Official Audit Action Restored
             if (action === 'AUDIT') {
                 endpoint = `/hardware/audit`;
                 payload = { 
                     asset_tag: item.tag, 
                     location_id: document.getElementById('target-type').value === 'location' ? item.target_id : null, 
-                    note: "Batch Audit via SnipeScan Pro" 
+                    note: "Batch Audit via Pro App" 
                 };
             } else if (action === 'OUT') {
                 await proxyRequest(`/hardware/${item.id}/checkin`, "POST", { status_id: sId });
@@ -199,7 +205,7 @@
                 payload = { status_id: sId };
             }
 
-            await proxyRequest(endpoint, method, payload);
+            await proxyRequest(endpoint, "POST", payload);
             await new Promise(r => setTimeout(r, 600)); 
         }
 
@@ -207,7 +213,7 @@
         saveBatchToAuditLog(auditData);
         await proxyRequest("email-log", "POST", auditData);
 
-        statusDiv.innerText = "Success. Logs Emailed.";
+        statusDiv.innerText = "Sync Complete. Email Sent.";
         scannedQueue = []; updateUI();
         document.getElementById('progress-container').style.display = 'none';
     }
