@@ -17,19 +17,10 @@
         
         #reader { 
             width: 100%; height: 220px; border-radius: 12px; overflow: hidden; 
-            background: #000; border: 4px solid var(--border); transition: border-color 0.2s; position: relative;
+            background: #000; border: 4px solid var(--border); position: relative;
         }
         
         #reader video { object-fit: cover !important; height: 220px !important; }
-
-        #reader__scan_region { 
-            position: absolute !important; top: 0 !important; left: 0 !important;
-            width: 100% !important; height: 100% !important; display: flex !important;
-            align-items: center !important; justify-content: center !important;
-        }
-
-        #reader__scan_region svg rect { display: none !important; }
-        #reader__scan_region svg path { stroke: var(--secondary) !important; stroke-width: 4px !important; }
 
         .card { background: var(--card-bg); padding: 15px; border-radius: 12px; margin-top: 12px; border: 1px solid var(--border); box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
         
@@ -40,36 +31,31 @@
 
         .btn { padding: 15px; border: none; border-radius: 8px; color: white; font-weight: bold; width: 100%; margin-top: 10px; font-size: 14px; cursor: pointer; display: block; text-align: center; }
         
-        .scan-item { padding: 12px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-        .tag-info { flex: 1; min-width: 0; }
+        .scan-item { padding: 12px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
         .tag-main { font-weight: bold; font-size: 15px; display: block; }
-        .tag-subtext { font-size: 12px; color: var(--secondary); display: block; }
-
-        @keyframes scan-flash {
-            0% { border-color: var(--primary); box-shadow: 0 0 20px var(--primary); }
-            100% { border-color: var(--border); box-shadow: none; }
-        }
-        .flash-active { animation: scan-flash 0.5s ease-out; }
+        .tag-subtext { font-size: 11px; color: var(--secondary); display: block; }
 
         #info-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:4000; justify-content:center; align-items:center; }
-        .info-card { background:var(--card-bg); width:85%; max-width:380px; border-radius:15px; padding:20px; border-top: 5px solid var(--warning); box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .info-card { background:var(--card-bg); width:85%; max-width:380px; border-radius:15px; padding:20px; border-top: 5px solid var(--warning); }
         
         #loading-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:5000; color:white; flex-direction:column; justify-content:center; align-items:center; }
-        @keyframes spin { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
+        
+        .info-row { margin-bottom: 10px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+        .info-label { font-size: 10px; font-weight: bold; color: var(--secondary); text-transform: uppercase; }
+        .info-val { font-size: 14px; display: block; }
     </style>
 </head>
 <body>
 
 <div id="loading-overlay">
-    <div style="border:4px solid #fff; border-left-color:var(--secondary); width:30px; height:30px; border-radius:50%; animation:spin 1s linear infinite;"></div>
-    <div id="loading-msg" style="margin-top:15px; font-weight:bold;">Processing Batch...</div>
+    <div id="loading-msg" style="font-weight:bold;">Processing...</div>
 </div>
 
 <div id="info-modal">
     <div class="info-card">
-        <h3 style="margin-top:0; color:var(--warning);">Asset Information</h3>
-        <div id="info-fields"></div>
-        <button onclick="closeInfoModal()" class="btn" style="background:var(--secondary); width:100%; margin-top:15px;">Close Info</button>
+        <h3 style="margin-top:0; color:var(--warning);">Asset Details</h3>
+        <div id="info-fields" style="max-height: 60vh; overflow-y: auto;"></div>
+        <button onclick="closeInfoModal()" class="btn" style="background:var(--secondary); width:100%; margin-top:15px;">Close</button>
     </div>
 </div>
 
@@ -80,7 +66,7 @@
     </div>
     
     <div id="reader"></div>
-    <div id="status" style="text-align:center; padding:8px; font-size:12px; font-weight:bold; color: var(--secondary);">Connecting...</div>
+    <div id="status" style="text-align:center; padding:8px; font-size:12px; font-weight:bold; color: var(--secondary);">Ready</div>
 
     <div style="display: flex; gap: 5px; margin-top: 5px;">
         <button id="info-btn" onclick="startInfoScan()" style="flex:1; padding:12px; font-size:11px; border-radius:8px; border:2px solid var(--warning); background:var(--card-bg); color:var(--text); font-weight:bold;">🔍 Info Scan</button>
@@ -94,33 +80,28 @@
     </div>
 
     <div id="range-box" class="card" style="display:none; border-style:dashed;">
-        <div id="range-status" style="font-size:12px; text-align:center; padding:8px; margin-bottom:10px; font-weight:bold; background:rgba(52, 152, 219, 0.1); border-radius:5px;">Process Range Mode</div>
-        <div style="display: flex; gap: 5px;">
-            <input type="text" id="range-start-input" placeholder="Start Tag" style="text-transform:uppercase;">
-            <input type="text" id="range-end-input" placeholder="End Tag" style="text-transform:uppercase;">
-        </div>
-        <button onclick="manualRangeSubmit()" class="btn" style="background:var(--primary); width:100%;">Search & Add Range</button>
+        <input type="text" id="range-start-input" placeholder="Start Tag" style="text-transform:uppercase;">
+        <input type="text" id="range-end-input" placeholder="End Tag" style="text-transform:uppercase;">
+        <button onclick="manualRangeSubmit()" class="btn" style="background:var(--primary); width:100%;">Add Range</button>
     </div>
 
     <div class="card">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-            <strong>Queue (<span id="count">0</span>)</strong>
-            <button onclick="clearBatch()" style="font-size:11px; color:var(--danger); background:none; border:none;">Clear All</button>
-        </div>
-        <div id="scan-list" style="max-height:180px; overflow-y:auto; margin-top:10px; border:1px solid var(--border); border-radius:8px;"></div>
+        <strong>Queue (<span id="count">0</span>)</strong>
+        <div id="scan-list" style="max-height:150px; overflow-y:auto; margin-top:10px; border:1px solid var(--border); border-radius:8px;"></div>
+        <button onclick="clearBatch()" style="font-size:11px; color:var(--danger); background:none; border:none; margin-top:5px;">Clear All</button>
     </div>
 
     <div class="card">
-        <label style="font-size: 11px; font-weight: bold; color: var(--secondary);">TARGET SETTINGS</label>
-        <select id="target-type" onchange="toggleTargetList()"><option value="user">Assign to: Person</option><option value="location" selected>Assign to: Location</option></select>
-        <input type="text" id="assign-search" placeholder="Filter names..." onkeyup="filterAssignList()">
-        <select id="target-id" onchange="updateUI()"></select>
+        <label style="font-size: 11px; font-weight: bold;">Target User/Location</label>
+        <select id="target-type" onchange="toggleTargetList()"><option value="user">User</option><option value="location" selected>Location</option></select>
+        <input type="text" id="assign-search" placeholder="Filter..." onkeyup="filterAssignList()">
+        <select id="target-id"></select>
         <select id="status-id"></select>
 
-        <div id="batch-controls" style="display:none; flex-direction:column; gap:8px; margin-top:15px; border-top: 1px solid var(--border); padding-top: 15px;">
-            <button class="btn" style="background:var(--primary)" onclick="processBatch('IN')">📥 Check-In All</button>
-            <button class="btn" style="background:var(--danger)" onclick="processBatch('OUT')">📤 Check-Out All</button>
-            <button class="btn" style="background:var(--warning); color:#222" onclick="processBatch('AUDIT')">⚖️ Official Audit</button>
+        <div id="batch-controls" style="display:none; flex-direction:column; gap:8px; margin-top:10px;">
+            <button class="btn" style="background:var(--primary)" onclick="processBatch('IN')">Check-In</button>
+            <button class="btn" style="background:var(--danger)" onclick="processBatch('OUT')">Check-Out</button>
+            <button class="btn" style="background:var(--warning); color:#222" onclick="processBatch('AUDIT')">Submit Audit</button>
         </div>
     </div>
 </div>
@@ -128,8 +109,7 @@
 <script>
     const PROXY_URL = "https://script.google.com/macros/s/AKfycbwui4ZEpgCNC08tSbNHh_JNz6YojbVl9GD5CpOCdsYkSJNC3pBrT3spyn2TjYCyUuOm9w/exec"; 
     let scannedQueue = [], users = [], locations = [], statusLabels = [];
-    let isScanningLocked = false, infoMode = false;
-    let lastScanTime = 0;
+    let isScanningLocked = false, infoMode = false, lastScanTime = 0;
 
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     function playBeep() {
@@ -138,36 +118,29 @@
         osc.connect(gain); gain.connect(audioCtx.destination);
         osc.frequency.value = 880; gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
         osc.start(); osc.stop(audioCtx.currentTime + 0.1);
-        document.getElementById('reader').classList.add('flash-active');
-        setTimeout(() => document.getElementById('reader').classList.remove('flash-active'), 500);
     }
 
     const scanner = new Html5Qrcode("reader");
-    scanner.start({ facingMode: "environment" }, { fps: 20, qrbox: (w, h) => { return { width: w * 0.8, height: 100 }; } }, onScanSuccess);
+    scanner.start({ facingMode: "environment" }, { fps: 20, qrbox: { width: 250, height: 120 } }, onScanSuccess);
 
     async function onScanSuccess(tag) {
         const now = Date.now();
-        if (isScanningLocked || (now - lastScanTime < 2000)) return;
+        if (isScanningLocked || (now - lastScanTime < 2500)) return;
         
-        const cleanTag = tag.toString().toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
-        
-        // Prevent dupes in Queue Mode only
-        if (!infoMode && scannedQueue.some(i => i.tag === cleanTag)) return;
-
+        const cleanTag = tag.toString().toUpperCase().trim();
         lastScanTime = now;
         isScanningLocked = true;
         playBeep();
 
         if (infoMode) {
-            document.getElementById('status').innerText = `🔍 Searching ${cleanTag}...`;
-            try {
-                const res = await proxyRequest(`/hardware/bytag/${cleanTag}`);
-                displayInfo(res.id ? res : res.rows?.[0], cleanTag);
-            } catch (e) { 
-                alert("Search Error"); 
-                isScanningLocked = false; 
-                document.getElementById('status').innerText = "Ready";
-            }
+            document.getElementById('status').innerText = "Fetching...";
+            const res = await proxyRequest(`/hardware/bytag/${cleanTag}`);
+            displayInfo(res.id ? res : res.rows?.[0], cleanTag);
+            return;
+        }
+
+        if (scannedQueue.some(i => i.tag === cleanTag)) {
+            isScanningLocked = false;
             return;
         }
 
@@ -176,14 +149,12 @@
     }
 
     async function addAssetToQueue(tag) {
-        try {
-            const res = await proxyRequest(`/hardware/bytag/${tag}`);
-            const asset = res.id ? res : (res.rows?.[0] || null);
-            if (asset) {
-                scannedQueue.unshift({ id: asset.id, tag: tag, name: asset.model.name });
-                updateUI();
-            }
-        } catch(e) { console.error("Asset fetch error", e); }
+        const res = await proxyRequest(`/hardware/bytag/${tag}`);
+        const asset = res.id ? res : (res.rows?.[0] || null);
+        if (asset) {
+            scannedQueue.unshift({ id: asset.id, tag: tag, name: asset.model.name });
+            updateUI();
+        }
     }
 
     async function processBatch(type) {
@@ -193,18 +164,16 @@
         const tId = document.getElementById('target-id').value;
         const tType = document.getElementById('target-type').value;
         const sId = document.getElementById('status-id').value;
-        const targetName = document.getElementById('target-id').options[document.getElementById('target-id').selectedIndex].text;
-
         const nextYear = new Date();
         nextYear.setFullYear(nextYear.getFullYear() + 1);
-        const formattedNextAudit = nextYear.toISOString().split('T')[0];
+        const auditDate = nextYear.toISOString().split('T')[0];
 
         try {
             for (const asset of scannedQueue) {
-                let ep, m = "POST", p = {};
+                let ep, p = {};
                 if (type === 'AUDIT') {
                     ep = `/hardware/${asset.id}/audit`;
-                    p = { asset_tag: asset.tag, location_id: tId, next_audit_date: formattedNextAudit, note: "Scan Audit" };
+                    p = { asset_tag: asset.tag, location_id: tId, next_audit_date: auditDate, note: "Scanner Audit" };
                 } else if (type === 'OUT') {
                     ep = `/hardware/${asset.id}/checkout`;
                     p = { checkout_to_type: tType, assigned_user: tId, assigned_location: tId, status_id: sId };
@@ -212,110 +181,83 @@
                     ep = `/hardware/${asset.id}/checkin`;
                     p = { status_id: sId };
                 }
-                await proxyRequest(ep, m, p);
+                const res = await proxyRequest(ep, "POST", p);
+                console.log("Snipe Response:", res);
             }
-            await proxyRequest('email-log', 'POST', { action: type, count: scannedQueue.length, details: scannedQueue.map(a => `${a.tag} ➔ ${targetName}`) });
-            alert("Success! Snipe-IT Updated.");
+            alert("Done!");
             scannedQueue = []; updateUI();
-        } catch (e) { alert("Batch Error"); } finally { hideLoading(); }
+        } catch (e) { alert("Error: " + e); } finally { hideLoading(); }
+    }
+
+    function displayInfo(asset, tag) {
+        if (!asset) { alert("Not found"); isScanningLocked = false; return; }
+        const data = [
+            ["Tag", asset.asset_tag],
+            ["Name", asset.name],
+            ["Model", asset.model?.name],
+            ["Serial", asset.serial],
+            ["Status", asset.status_label?.name],
+            ["Location", asset.location?.name || asset.default_location?.name],
+            ["Assigned To", asset.assigned_to?.name || "Unassigned"],
+            ["Last Audit", asset.last_audit_date?.formatted || "Never"]
+        ];
+        document.getElementById('info-fields').innerHTML = data.map(r => `
+            <div class="info-row">
+                <span class="info-label">${r[0]}</span>
+                <span class="info-val">${r[1] || 'N/A'}</span>
+            </div>`).join('');
+        document.getElementById('info-modal').style.display = 'flex';
     }
 
     function updateUI() {
-        const sel = document.getElementById('target-id');
-        const target = sel.options[sel.selectedIndex]?.text || "...";
         document.getElementById('scan-list').innerHTML = scannedQueue.map((item, idx) => `
             <div class="scan-item">
-                <div class="tag-info"><span class="tag-main">${item.tag}</span><span class="tag-subtext">${item.name}</span></div>
-                <button onclick="removeFromQueue(${idx})" style="border:none; background:none; color:var(--danger); font-size:24px;">&times;</button>
+                <div><span class="tag-main">${item.tag}</span><span class="tag-subtext">${item.name}</span></div>
+                <button onclick="removeFromQueue(${idx})" style="color:red; background:none; border:none; font-size:20px;">&times;</button>
             </div>`).join('');
         document.getElementById('batch-controls').style.display = scannedQueue.length > 0 ? 'flex' : 'none';
         document.getElementById('count').innerText = scannedQueue.length;
     }
 
-    function displayInfo(asset, tag) {
-        if (!asset) { 
-            alert(`Asset ${tag} not found.`); 
-            isScanningLocked = false; 
-            document.getElementById('status').innerText = "Ready";
-            return; 
-        }
-        const rows = [ ["Tag", asset.asset_tag], ["Model", asset.model?.name], ["Status", asset.status_label?.name], ["Assigned", asset.assigned_to?.name || "Unassigned"], ["Location", asset.location?.name || asset.default_location?.name || "N/A"] ];
-        document.getElementById('info-fields').innerHTML = rows.map(r => `<div style="margin-bottom:8px; border-bottom: 1px solid var(--border); padding-bottom: 4px;"><small style="color:var(--secondary); font-weight:bold; display:block; font-size: 10px;">${r[0]}</small>${r[1] || 'None'}</div>`).join('');
-        document.getElementById('info-modal').style.display = 'flex';
-        document.getElementById('status').innerText = "Info Displayed";
-    }
-
-    function closeInfoModal() { 
-        document.getElementById('info-modal').style.display = 'none'; 
-        isScanningLocked = false; // RESTORE SCANNING ABILITY
-        infoMode = false; 
-        document.getElementById('info-btn').style.background = "var(--card-bg)";
-        document.getElementById('status').innerText = "Ready";
-    }
-
-    function startInfoScan() { 
-        infoMode = true; 
-        isScanningLocked = false; // ENSURE SCANNER IS ACTIVE
-        document.getElementById('info-btn').style.background = "var(--warning)";
-        document.getElementById('status').innerText = "INFO MODE ACTIVE: Scan tag"; 
-    }
-
-    function toggleSection(id) { 
-        infoMode = false; 
-        document.getElementById('info-btn').style.background = "var(--card-bg)";
-        document.getElementById('manual-single').style.display = 'none'; 
-        document.getElementById('range-box').style.display = 'none'; 
-        document.getElementById(id).style.display = 'block'; 
-    }
-
+    function startInfoScan() { infoMode = true; isScanningLocked = false; document.getElementById('info-btn').style.background = "var(--warning)"; }
+    function closeInfoModal() { document.getElementById('info-modal').style.display = 'none'; isScanningLocked = false; infoMode = false; document.getElementById('info-btn').style.background = "var(--card-bg)"; }
+    function toggleSection(id) { document.getElementById('manual-single').style.display = 'none'; document.getElementById('range-box').style.display = 'none'; document.getElementById(id).style.display = 'block'; }
     async function proxyRequest(e, m="GET", p=null) { 
-        const r = await fetch(PROXY_URL, {method:'POST', body:JSON.stringify({endpoint:e, method:m, payload:p})}); 
+        const r = await fetch(PROXY_URL, {method:'POST', body:JSON.stringify({endpoint:e, method:m, payload:p})});
         return r.json(); 
     }
-    
     function removeFromQueue(i) { scannedQueue.splice(i, 1); updateUI(); }
     function clearBatch() { scannedQueue = []; updateUI(); }
     function showLoading(m) { document.getElementById('loading-msg').innerText = m; document.getElementById('loading-overlay').style.display = 'flex'; }
     function hideLoading() { document.getElementById('loading-overlay').style.display = 'none'; }
     function toggleDarkMode() { document.documentElement.setAttribute("data-theme", document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark"); }
-
-    async function loadResources() {
-        const [u, l, s] = await Promise.all([proxyRequest('/users?limit=500'), proxyRequest('/locations?limit=500'), proxyRequest('/statuslabels')]);
-        users = u.rows; locations = l.rows; statusLabels = s.rows;
-        toggleTargetList();
-        document.getElementById('status-id').innerHTML = statusLabels.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
-        document.getElementById('status').innerText = "Ready";
-    }
-
     function toggleTargetList() {
         const list = document.getElementById('target-type').value === 'user' ? users : locations;
         document.getElementById('target-id').innerHTML = list.map(i => `<option value="${i.id}">${i.name || i.display_name}</option>`).join('');
-        updateUI();
     }
-    
     function filterAssignList() {
         const query = document.getElementById('assign-search').value.toLowerCase();
         const list = document.getElementById('target-type').value === 'user' ? users : locations;
         const filtered = list.filter(item => (item.name || item.display_name).toLowerCase().includes(query));
         document.getElementById('target-id').innerHTML = filtered.map(i => `<option value="${i.id}">${i.name || i.display_name}</option>`).join('');
     }
-
     async function manualRangeSubmit() {
-        const start = document.getElementById('range-start-input').value.toUpperCase();
-        const end = document.getElementById('range-end-input').value.toUpperCase();
-        if (!start || !end) return alert("Enter both tags");
-        showLoading("Searching Range...");
-        const prefix = start.match(/^[A-Z]*/)[0];
-        const sNum = parseInt(start.match(/\d+/)[0]);
-        const eNum = parseInt(end.match(/\d+/)[0]);
-        const pad = start.match(/\d+/)[0].length;
+        const start = document.getElementById('range-start-input').value;
+        const end = document.getElementById('range-end-input').value;
+        showLoading("Adding...");
+        const prefix = start.match(/^[A-Z]*/)[0], sNum = parseInt(start.match(/\d+/)[0]), eNum = parseInt(end.match(/\d+/)[0]), pad = start.match(/\d+/)[0].length;
         for (let i = Math.min(sNum, eNum); i <= Math.max(sNum, eNum); i++) {
             const currentTag = prefix + i.toString().padStart(pad, '0');
             if (!scannedQueue.some(q => q.tag === currentTag)) await addAssetToQueue(currentTag);
         }
         hideLoading();
     }
-
+    async function loadResources() {
+        const [u, l, s] = await Promise.all([proxyRequest('/users?limit=500'), proxyRequest('/locations?limit=500'), proxyRequest('/statuslabels')]);
+        users = u.rows; locations = l.rows; statusLabels = s.rows;
+        toggleTargetList();
+        document.getElementById('status-id').innerHTML = statusLabels.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+    }
     loadResources();
 </script>
 </body>
