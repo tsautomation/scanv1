@@ -152,32 +152,47 @@
     }
 
     async function onScanSuccess(tag) {
-        if (isScanningLocked) return;
-        const cleanTag = tag.toString().toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
+    if (isScanningLocked) return;
+    const cleanTag = tag.toString().toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
 
-        if (rangeMode) {
-            if (!rangeStartTag) {
-                rangeStartTag = cleanTag;
-                document.getElementById('range-toggle-btn').innerText = "🔢 START: " + cleanTag;
-                statusDiv.innerText = "Scan LAST asset in range";
-                if(soundEnabled) beep.play();
-                return;
+    // --- UPDATED RANGE MODE LOGIC ---
+    if (rangeMode) {
+        if (!rangeStartTag) {
+            rangeStartTag = cleanTag;
+            isScanningLocked = true; // Stop camera interference
+            
+            // Visual feedback
+            if(soundEnabled) beep.play();
+            
+            const proceed = confirm(`START TAG CAPTURED: ${cleanTag}\n\nReady to scan the END tag?`);
+            
+            if (proceed) {
+                document.getElementById('range-toggle-btn').innerText = "🔢 END TAG: WAITING...";
+                statusDiv.innerText = "Aim at the LAST asset in the range";
+                // Short delay so you can reposition the phone before camera re-activates
+                setTimeout(() => { isScanningLocked = false; }, 1000); 
             } else {
-                await processRange(rangeStartTag, cleanTag);
-                toggleRangeMode();
-                return;
+                toggleRangeMode(); // Cancel if they hit cancel
             }
+            return;
+        } else {
+            // Second tag captured
+            await processRange(rangeStartTag, cleanTag);
+            toggleRangeMode();
+            return;
         }
-
-        if (scannedQueue.some(i => i.tag === cleanTag)) return;
-        isScanningLocked = true;
-        try {
-            const response = await proxyRequest(`/hardware/bytag/${cleanTag}`);
-            let asset = response.id ? response : (response.rows && response.rows.length > 0 ? response.rows[0] : null);
-            if (asset && asset.id) { processValidAsset(asset, cleanTag); } 
-            else { triggerFail(cleanTag); }
-        } finally { setTimeout(() => { isScanningLocked = false; }, 2000); }
     }
+
+    // Standard scanning logic remains the same...
+    if (scannedQueue.some(i => i.tag === cleanTag)) return;
+    isScanningLocked = true;
+    try {
+        const response = await proxyRequest(`/hardware/bytag/${cleanTag}`);
+        let asset = response.id ? response : (response.rows && response.rows.length > 0 ? response.rows[0] : null);
+        if (asset && asset.id) { processValidAsset(asset, cleanTag); } 
+        else { triggerFail(cleanTag); }
+    } finally { setTimeout(() => { isScanningLocked = false; }, 2000); }
+}
 
     async function processRange(start, end) {
         const matchStart = start.match(/^([A-Z]*)(\d+)$/);
