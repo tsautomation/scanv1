@@ -15,20 +15,39 @@
         body { background: var(--bg); color: var(--text); font-family: -apple-system, system-ui, sans-serif; margin: 0; padding-bottom: 80px; overflow-x: hidden; }
         .container { padding: 10px; max-width: 500px; margin: auto; }
         
-        /* Compact Camera Window */
+        /* Compact Camera Window - Slightly increased for UI stability */
         #reader { 
             width: 100%; 
-            height: 180px; 
+            height: 220px; 
             border-radius: 12px; 
             overflow: hidden; 
             background: #000; 
             border: 4px solid var(--border); 
             transition: border-color 0.2s; 
+            position: relative;
         }
         
-        /* Force the QR Focus Box to stay visible and centered */
-        #reader__scan_region { display: flex !important; justify-content: center !important; align-items: center !important; }
-        #reader video { object-fit: cover !important; }
+        /* Force video to fill and center */
+        #reader video { 
+            object-fit: cover !important; 
+            height: 220px !important; 
+        }
+
+        /* Fix for the focus box positioning */
+        #reader__scan_region { 
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+        }
+
+        /* Hide the annoying 'shading' that often misaligns in small boxes */
+        #reader__scan_region svg rect { display: none !important; }
+        #reader__scan_region svg path { stroke: var(--secondary) !important; stroke-width: 4px !important; }
 
         .card { background: var(--card-bg); padding: 15px; border-radius: 12px; margin-top: 12px; border: 1px solid var(--border); box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
         
@@ -137,7 +156,6 @@
     function playBeep() {
         const now = Date.now();
         if (now - lastBeepTime < 2000) return; 
-        
         lastBeepTime = now;
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
@@ -148,7 +166,6 @@
         gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
         osc.start();
         osc.stop(audioCtx.currentTime + 0.1);
-        
         const rEl = document.getElementById('reader');
         rEl.classList.remove('flash-active');
         void rEl.offsetWidth;
@@ -156,16 +173,25 @@
     }
 
     const scanner = new Html5Qrcode("reader");
-    // Adjusted QRBox to 250x100 to fit the 180px window height
-    scanner.start({ facingMode: "environment" }, { fps: 20, qrbox: { width: 250, height: 100 } }, onScanSuccess);
+    
+    // Using a function for qrbox ensures it fits within the 220px window
+    const qrboxFunction = function(viewfinderWidth, viewfinderHeight) {
+        let minEdgePercentage = 0.7; 
+        let minEdgeSize = Math.min(viewfinderWidth, viewfinderHeight);
+        let qrboxSize = Math.floor(minEdgeSize * minEdgePercentage);
+        return {
+            width: viewfinderWidth * 0.8,
+            height: 100 // Fixed height for wide scanning
+        };
+    }
+
+    scanner.start({ facingMode: "environment" }, { fps: 20, qrbox: qrboxFunction }, onScanSuccess);
 
     async function onScanSuccess(tag) {
         if (isScanningLocked) return;
         const cleanTag = tag.toString().toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
-
         if (infoMode) {
-            playBeep();
-            isScanningLocked = true;
+            playBeep(); isScanningLocked = true;
             document.getElementById('status').innerText = `🔍 Fetching ${cleanTag}...`;
             try {
                 const res = await proxyRequest(`/hardware/bytag/${cleanTag}`);
@@ -174,27 +200,22 @@
             } catch (e) { alert("Error"); isScanningLocked = false; }
             return;
         }
-
         if (rangeMode) {
             const startIn = document.getElementById('range-start-input');
             const endIn = document.getElementById('range-end-input');
             if (!startIn.value) {
-                playBeep();
-                isScanningLocked = true;
+                playBeep(); isScanningLocked = true;
                 startIn.value = cleanTag;
                 document.getElementById('range-status').innerHTML = `✅ START: ${cleanTag}<br>Scan END Tag`;
                 setTimeout(() => { isScanningLocked = false; }, 1500);
             } else if (!endIn.value && cleanTag !== startIn.value) {
-                playBeep();
-                isScanningLocked = true;
+                playBeep(); isScanningLocked = true;
                 endIn.value = cleanTag;
                 document.getElementById('range-status').innerHTML = "✅ Range Ready!";
             }
             return;
         }
-
         if (scannedQueue.some(i => i.tag === cleanTag)) return;
-
         playBeep();
         document.getElementById('status').innerText = `✅ Added ${cleanTag}`;
         setTimeout(() => { if(!infoMode) document.getElementById('status').innerText = "Ready"; }, 1500);
@@ -240,12 +261,8 @@
             count: scannedQueue.length,
             details: scannedQueue.map(a => `${a.tag} (${a.name}) ➔ ${targetName}`)
         };
-
         showLoading("Syncing with Snipe-IT...");
-        const tId = document.getElementById('target-id').value;
-        const tType = document.getElementById('target-type').value;
-        const sId = document.getElementById('status-id').value;
-
+        const tId = document.getElementById('target-id').value, tType = document.getElementById('target-type').value, sId = document.getElementById('status-id').value;
         try {
             for (const asset of scannedQueue) {
                 let ep = `/hardware/${asset.id}/audit`, m = "POST", p = { asset_tag: asset.tag, location_id: tId };
@@ -253,8 +270,7 @@
                     ep = `/hardware/${asset.id}/checkout`; 
                     p = { checkout_to_type: tType, assigned_user: tId, assigned_location: tId, status_id: sId }; 
                 } else if (type === 'IN') { 
-                    ep = `/hardware/${asset.id}/checkin`; 
-                    p = { status_id: sId }; 
+                    ep = `/hardware/${asset.id}/checkin`; p = { status_id: sId }; 
                 }
                 await proxyRequest(ep, m, p);
             }
@@ -278,21 +294,17 @@
     }
 
     function toggleSection(id) {
-        infoMode = false;
-        document.getElementById('info-btn').style.background = "var(--card-bg)";
-        document.getElementById('manual-single').style.display = 'none';
-        document.getElementById('range-box').style.display = 'none';
+        infoMode = false; document.getElementById('info-btn').style.background = "var(--card-bg)";
+        document.getElementById('manual-single').style.display = 'none'; document.getElementById('range-box').style.display = 'none';
         document.getElementById(id).style.display = 'block';
         rangeMode = (id === 'range-box');
-        if(rangeMode) { document.getElementById('range-start-input').value = ''; document.getElementById('range-end-input').value = ''; }
     }
 
     function startInfoScan() {
         infoMode = true; rangeMode = false; isScanningLocked = false;
         document.getElementById('info-btn').style.background = "var(--warning)";
         document.getElementById('status').innerText = "INFO MODE: Scan tag";
-        document.getElementById('manual-single').style.display = 'none';
-        document.getElementById('range-box').style.display = 'none';
+        document.getElementById('manual-single').style.display = 'none'; document.getElementById('range-box').style.display = 'none';
     }
 
     function filterAssignList() {
