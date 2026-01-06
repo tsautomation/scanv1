@@ -15,37 +15,19 @@
         body { background: var(--bg); color: var(--text); font-family: -apple-system, system-ui, sans-serif; margin: 0; padding-bottom: 80px; overflow-x: hidden; }
         .container { padding: 10px; max-width: 500px; margin: auto; }
         
-        /* Compact Camera Window - Slightly increased for UI stability */
         #reader { 
-            width: 100%; 
-            height: 220px; 
-            border-radius: 12px; 
-            overflow: hidden; 
-            background: #000; 
-            border: 4px solid var(--border); 
-            transition: border-color 0.2s; 
-            position: relative;
+            width: 100%; height: 220px; border-radius: 12px; overflow: hidden; 
+            background: #000; border: 4px solid var(--border); transition: border-color 0.2s; position: relative;
         }
         
-        /* Force video to fill and center */
-        #reader video { 
-            object-fit: cover !important; 
-            height: 220px !important; 
-        }
+        #reader video { object-fit: cover !important; height: 220px !important; }
 
-        /* Fix for the focus box positioning */
         #reader__scan_region { 
-            position: absolute !important;
-            top: 0 !important;
-            left: 0 !important;
-            width: 100% !important;
-            height: 100% !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
+            position: absolute !important; top: 0 !important; left: 0 !important;
+            width: 100% !important; height: 100% !important; display: flex !important;
+            align-items: center !important; justify-content: center !important;
         }
 
-        /* Hide the annoying 'shading' that often misaligns in small boxes */
         #reader__scan_region svg rect { display: none !important; }
         #reader__scan_region svg path { stroke: var(--secondary) !important; stroke-width: 4px !important; }
 
@@ -173,18 +155,7 @@
     }
 
     const scanner = new Html5Qrcode("reader");
-    
-    // Using a function for qrbox ensures it fits within the 220px window
-    const qrboxFunction = function(viewfinderWidth, viewfinderHeight) {
-        let minEdgePercentage = 0.7; 
-        let minEdgeSize = Math.min(viewfinderWidth, viewfinderHeight);
-        let qrboxSize = Math.floor(minEdgeSize * minEdgePercentage);
-        return {
-            width: viewfinderWidth * 0.8,
-            height: 100 // Fixed height for wide scanning
-        };
-    }
-
+    const qrboxFunction = (w, h) => { return { width: w * 0.8, height: 100 }; }
     scanner.start({ facingMode: "environment" }, { fps: 20, qrbox: qrboxFunction }, onScanSuccess);
 
     async function onScanSuccess(tag) {
@@ -247,7 +218,8 @@
             const res = await proxyRequest(`/hardware/bytag/${tag}`);
             const asset = res.id ? res : (res.rows?.[0] || null);
             if (asset) {
-                scannedQueue.push({ id: asset.id, tag: tag, name: asset.model.name });
+                // Changed from .push() to .unshift() to place new scans at the top
+                scannedQueue.unshift({ id: asset.id, tag: tag, name: asset.model.name });
                 updateUI();
             }
         } finally { setTimeout(() => { isScanningLocked = false; }, 1000); }
@@ -330,7 +302,8 @@
             if (!scannedQueue.some(q => q.tag === currentTag)) {
                 const res = await proxyRequest(`/hardware/bytag/${currentTag}`);
                 const asset = res.id ? res : (res.rows?.[0] || null);
-                if (asset) scannedQueue.push({ id: asset.id, tag: currentTag, name: asset.model.name });
+                // Unshift here as well for consistency in Range mode
+                if (asset) scannedQueue.unshift({ id: asset.id, tag: currentTag, name: asset.model.name });
             }
         }
         updateUI(); hideLoading(); exitRangeMode();
