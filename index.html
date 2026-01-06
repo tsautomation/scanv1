@@ -28,28 +28,33 @@
         .scan-item { padding: 12px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: 10px; }
         .tag-info { flex: 1; min-width: 0; }
         .tag-main { font-weight: bold; font-size: 15px; display: block; }
-        .tag-subtext { font-size: 12px; color: var(--secondary); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .tag-subtext { font-size: 12px; color: var(--secondary); display: block; }
 
-        .range-step-active { border: 2px solid var(--secondary) !important; background: rgba(52, 152, 219, 0.1) !important; }
-
+        /* Info Modal Styling */
         #info-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:4000; justify-content:center; align-items:center; }
-        .info-card { background:var(--card-bg); width:85%; max-width:380px; border-radius:15px; padding:20px; border-top: 5px solid var(--warning); }
+        .info-card { background:var(--card-bg); width:85%; max-width:380px; border-radius:15px; padding:20px; border-top: 5px solid var(--warning); box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
         .info-row { margin-bottom:10px; border-bottom:1px solid var(--border); padding-bottom:4px; }
         .info-label { font-size:10px; text-transform:uppercase; color:var(--secondary); font-weight:bold; display:block; }
-        .info-val { font-size:14px; color: var(--text); }
+        .info-val { font-size:14px; color: var(--text); font-weight: 500; }
 
         #loading-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:5000; color:white; flex-direction:column; justify-content:center; align-items:center; }
+        @keyframes spin { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
     </style>
 </head>
 <body>
 
 <div id="loading-overlay">
     <div style="border:4px solid #fff; border-left-color:var(--secondary); width:30px; height:30px; border-radius:50%; animation:spin 1s linear infinite;"></div>
-    <div id="loading-msg" style="margin-top:15px;">Processing...</div>
+    <div id="loading-msg" style="margin-top:15px; font-weight:bold;">Syncing...</div>
 </div>
-<style>@keyframes spin { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }</style>
 
-<div id="info-modal"><div class="info-card"><div id="info-fields"></div><button onclick="closeInfoModal()" class="btn" style="background:var(--secondary); width:100%;">Close</button></div></div>
+<div id="info-modal">
+    <div class="info-card">
+        <h3 style="margin-top:0;">Asset Details</h3>
+        <div id="info-fields" style="max-height: 50vh; overflow-y: auto;"></div>
+        <button onclick="closeInfoModal()" class="btn" style="background:var(--secondary); width:100%; margin-top:15px;">Close</button>
+    </div>
+</div>
 
 <div class="container">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
@@ -58,12 +63,12 @@
     </div>
     
     <div id="reader"></div>
-    <div id="status" style="text-align:center; padding:8px; font-size:12px; font-weight:bold; color: var(--secondary);">Connecting...</div>
+    <div id="status" style="text-align:center; padding:8px; font-size:12px; font-weight:bold; color: var(--secondary);">Ready</div>
 
     <div style="display: flex; gap: 5px; margin-top: 5px;">
-        <button id="info-btn" onclick="startInfoScan()" style="flex:1; padding:10px; font-size:11px; border-radius:8px; border:2px solid var(--warning); background:var(--card-bg); font-weight:bold;">🔍 Info</button>
-        <button onclick="toggleSection('manual-single')" style="flex:1; padding:10px; font-size:11px; border-radius:8px; border:1px solid var(--border); background:var(--card-bg);">⌨️ Manual</button>
-        <button onclick="toggleSection('range-box')" style="flex:1; padding:10px; font-size:11px; border-radius:8px; border:1px solid var(--border); background:var(--card-bg);">🔢 Range</button>
+        <button id="info-btn" onclick="startInfoScan()" style="flex:1; padding:12px; font-size:11px; border-radius:8px; border:2px solid var(--warning); background:var(--card-bg); color:var(--text); font-weight:bold;">🔍 Info Scan</button>
+        <button onclick="toggleSection('manual-single')" style="flex:1; padding:12px; font-size:11px; border-radius:8px; border:1px solid var(--border); background:var(--card-bg);">⌨️ Manual</button>
+        <button onclick="toggleSection('range-box')" style="flex:1; padding:12px; font-size:11px; border-radius:8px; border:1px solid var(--border); background:var(--card-bg);">🔢 Range</button>
     </div>
 
     <div id="manual-single" class="card" style="display:none; border-style:dashed;">
@@ -72,9 +77,7 @@
     </div>
 
     <div id="range-box" class="card" style="display:none; border-style:dashed;">
-        <div id="range-status" style="font-size:12px; text-align:center; padding:8px; margin-bottom:10px; font-weight:bold; background:rgba(52, 152, 219, 0.1); border-radius:5px;">
-            Step 1: Scan START Tag
-        </div>
+        <div id="range-status" style="font-size:12px; text-align:center; padding:8px; margin-bottom:10px; font-weight:bold; background:rgba(52, 152, 219, 0.1); border-radius:5px;">Step 1: Scan START Tag</div>
         <div style="display: flex; gap: 5px;">
             <input type="text" id="range-start-input" placeholder="Start Tag" style="text-transform:uppercase;">
             <input type="text" id="range-end-input" placeholder="End Tag" style="text-transform:uppercase;">
@@ -84,15 +87,9 @@
     </div>
 
     <div class="card">
-        <label style="font-size:10px; font-weight:bold;">ASSIGN TO TYPE</label>
-        <select id="target-type" onchange="toggleTargetList()">
-            <option value="user">Person</option>
-            <option value="location">Location</option>
-        </select>
-        <label style="font-size:10px; font-weight:bold; margin-top:10px; display:block;">SEARCH NAME</label>
+        <select id="target-type" onchange="toggleTargetList()"><option value="user">Assign to: Person</option><option value="location">Assign to: Location</option></select>
         <input type="text" id="assign-search" placeholder="Filter names..." onkeyup="filterAssignList()">
         <select id="target-id" onchange="updateUI()"></select>
-        <label style="font-size:10px; font-weight:bold; margin-top:10px; display:block;">SET STATUS</label>
         <select id="status-id"></select>
     </div>
 
@@ -104,8 +101,8 @@
         <div id="scan-list" style="max-height:250px; overflow-y:auto; margin-top:10px; border:1px solid var(--border); border-radius:8px;"></div>
         
         <div id="batch-controls" style="display:none; flex-direction:column; gap:5px; margin-top:10px;">
-            <button class="btn" style="background:var(--primary)" onclick="processBatch('IN')">Check-In Batch</button>
-            <button class="btn" style="background:var(--danger)" onclick="processBatch('OUT')">Check-Out Batch</button>
+            <button class="btn" style="background:var(--primary)" onclick="processBatch('IN')">Check-In All</button>
+            <button class="btn" style="background:var(--danger)" onclick="processBatch('OUT')">Check-Out All</button>
             <button class="btn" style="background:var(--warning); color:#222" onclick="processBatch('AUDIT')">Official Audit</button>
         </div>
     </div>
@@ -125,31 +122,85 @@
 
         if (infoMode) {
             isScanningLocked = true;
-            const res = await proxyRequest(`/hardware/bytag/${cleanTag}`);
-            displayInfo(res.id ? res : res.rows?.[0], cleanTag);
+            document.getElementById('status').innerText = "Fetching Info...";
+            try {
+                const res = await proxyRequest(`/hardware/bytag/${cleanTag}`);
+                const asset = res.id ? res : (res.rows?.[0] || null);
+                displayInfo(asset, cleanTag);
+            } catch (e) {
+                alert("Search Error");
+                isScanningLocked = false;
+            }
             return;
         }
 
         if (rangeMode) {
             const startIn = document.getElementById('range-start-input');
             const endIn = document.getElementById('range-end-input');
-
             if (!startIn.value) {
                 isScanningLocked = true;
                 startIn.value = cleanTag;
-                startIn.classList.remove('range-step-active');
-                endIn.classList.add('range-step-active');
                 document.getElementById('range-status').innerHTML = "✅ START: " + cleanTag + "<br>Now Scan END Tag";
-                setTimeout(() => { isScanningLocked = false; }, 1500); // 1.5s Pause
+                setTimeout(() => { isScanningLocked = false; }, 1500);
             } else if (!endIn.value && cleanTag !== startIn.value) {
                 isScanningLocked = true;
                 endIn.value = cleanTag;
-                document.getElementById('range-status').innerHTML = "✅ Range Ready!<br>Click 'Process' to search.";
+                document.getElementById('range-status').innerHTML = "✅ Range Ready!";
             }
             return;
         }
 
         addAssetToQueue(cleanTag);
+    }
+
+    function startInfoScan() {
+        // Reset modes
+        infoMode = true;
+        rangeMode = false;
+        isScanningLocked = false; // Critical Fix: Unlock scanner immediately
+        
+        // UI Feedback
+        document.getElementById('info-btn').style.background = "var(--warning)";
+        document.getElementById('info-btn').style.color = "white";
+        document.getElementById('status').innerText = "INFO MODE: Scan any tag";
+        document.getElementById('manual-single').style.display = 'none';
+        document.getElementById('range-box').style.display = 'none';
+    }
+
+    function displayInfo(asset, tag) {
+        if (!asset) { 
+            alert("Asset " + tag + " not found in Snipe-IT"); 
+            closeInfoModal(); 
+            return; 
+        }
+        
+        const rows = [
+            {l: "Tag", v: asset.asset_tag},
+            {l: "Model", v: asset.model?.name},
+            {l: "Status", v: asset.status_label?.name},
+            {l: "Current Location", v: asset.location?.name || asset.default_location?.name},
+            {l: "Assigned To", v: asset.assigned_to?.name || "Unassigned"},
+            {l: "Last Audit", v: asset.last_audit_date?.formatted || 'Never'},
+            {l: "Last Check-In", v: asset.checkin_date?.formatted || 'N/A'}
+        ];
+        
+        document.getElementById('info-fields').innerHTML = rows.map(r => `
+            <div class="info-row">
+                <span class="info-label">${r.l}</span>
+                <span class="info-val">${r.v || 'N/A'}</span>
+            </div>
+        `).join('');
+        
+        document.getElementById('info-modal').style.display = 'flex';
+    }
+
+    function closeInfoModal() {
+        document.getElementById('info-modal').style.display = 'none';
+        infoMode = false;
+        isScanningLocked = false;
+        document.getElementById('info-btn').style.background = "var(--card-bg)";
+        document.getElementById('info-btn').style.color = "var(--text)";
+        document.getElementById('status').innerText = "Ready";
     }
 
     async function addAssetToQueue(tag) {
@@ -161,24 +212,21 @@
             if (asset) {
                 scannedQueue.push({ id: asset.id, tag: tag, name: asset.model.name });
                 updateUI();
-            } else { alert("Not Found: " + tag); }
+            }
         } finally { setTimeout(() => { isScanningLocked = false; }, 1000); }
     }
 
     async function manualRangeSubmit() {
         const start = document.getElementById('range-start-input').value.toUpperCase();
         const end = document.getElementById('range-end-input').value.toUpperCase();
-        if (!start || !end) return alert("Please provide both tags.");
+        if (!start || !end) return alert("Missing tags");
 
-        showLoading("Generating Range...");
+        showLoading("Searching Range...");
         const prefix = start.match(/^[A-Z]*/)[0];
-        const sMatch = start.match(/\d+/);
-        const eMatch = end.match(/\d+/);
-        if(!sMatch || !eMatch) return alert("Invalid Tag Format");
-
-        const sNum = parseInt(sMatch[0]), eNum = parseInt(eMatch[0]);
+        const sNum = parseInt(start.match(/\d+/)[0]);
+        const eNum = parseInt(end.match(/\d+/)[0]);
         const low = Math.min(sNum, eNum), high = Math.max(sNum, eNum);
-        const pad = sMatch[0].length;
+        const pad = start.match(/\d+/)[0].length;
 
         for (let i = low; i <= high; i++) {
             const currentTag = prefix + i.toString().padStart(pad, '0');
@@ -219,7 +267,22 @@
             else if (type === 'IN') { ep = `/hardware/${asset.id}/checkin`; p = { status_id: sId }; }
             await proxyRequest(ep, m, p);
         }
-        alert("Success!"); scannedQueue = []; updateUI(); hideLoading();
+        alert("Batch Done!"); scannedQueue = []; updateUI(); hideLoading();
+    }
+
+    function toggleSection(id) {
+        infoMode = false;
+        document.getElementById('info-btn').style.background = "var(--card-bg)";
+        document.getElementById('info-btn').style.color = "var(--text)";
+        document.getElementById('manual-single').style.display = 'none';
+        document.getElementById('range-box').style.display = 'none';
+        document.getElementById(id).style.display = 'block';
+        rangeMode = (id === 'range-box');
+        if(rangeMode) {
+            document.getElementById('range-start-input').value = '';
+            document.getElementById('range-end-input').value = '';
+            document.getElementById('range-status').innerHTML = "Step 1: Scan START Tag";
+        }
     }
 
     function filterAssignList() {
@@ -236,40 +299,6 @@
         return r.json(); 
     }
 
-    function toggleSection(id) {
-        document.getElementById('manual-single').style.display = 'none';
-        document.getElementById('range-box').style.display = 'none';
-        document.getElementById(id).style.display = 'block';
-        rangeMode = (id === 'range-box');
-        if(rangeMode) {
-            document.getElementById('range-start-input').value = '';
-            document.getElementById('range-end-input').value = '';
-            document.getElementById('range-start-input').classList.add('range-step-active');
-            document.getElementById('range-end-input').classList.remove('range-step-active');
-            document.getElementById('range-status').innerHTML = "Step 1: Scan START Tag";
-        }
-    }
-
-    function startInfoScan() { 
-        infoMode = true; 
-        document.getElementById('info-btn').style.background = "var(--warning)"; 
-        document.getElementById('status').innerText = "Info Mode: Scan Tag";
-    }
-
-    function displayInfo(asset, tag) {
-        if (!asset) { alert("Not found"); closeInfoModal(); return; }
-        const rows = [
-            {l: "Tag", v: asset.asset_tag}, {l: "Status", v: asset.status_label?.name},
-            {l: "Location", v: asset.location?.name || asset.default_location?.name},
-            {l: "Model", v: asset.model?.name}, 
-            {l: "Audit", v: asset.last_audit_date?.formatted || 'N/A'},
-            {l: "In Date", v: asset.checkin_date?.formatted || 'N/A'}
-        ];
-        document.getElementById('info-fields').innerHTML = rows.map(r => `<div class="info-row"><span class="info-label">${r.l}</span><span class="info-val">${r.v || 'None'}</span></div>`).join('');
-        document.getElementById('info-modal').style.display = 'flex';
-    }
-
-    function closeInfoModal() { document.getElementById('info-modal').style.display = 'none'; infoMode = false; isScanningLocked = false; document.getElementById('info-btn').style.background = "var(--card-bg)"; document.getElementById('status').innerText = "Ready"; }
     function addManualTag() { const t = document.getElementById('manual-tag').value.toUpperCase(); if(t) addAssetToQueue(t); document.getElementById('manual-tag').value = ''; }
     function removeFromQueue(i) { scannedQueue.splice(i, 1); updateUI(); }
     function clearBatch() { scannedQueue = []; updateUI(); }
@@ -285,11 +314,10 @@
             toggleTargetList();
             document.getElementById('status-id').innerHTML = statusLabels.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
             document.getElementById('status').innerText = "Ready";
-        } catch (e) { document.getElementById('status').innerText = "Connection Error"; }
+        } catch (e) { document.getElementById('status').innerText = "Error"; }
     }
 
     function toggleTargetList() { document.getElementById('assign-search').value = ''; filterAssignList(); }
-
     loadResources();
 </script>
 </body>
