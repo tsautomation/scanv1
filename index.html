@@ -128,7 +128,7 @@
 <script>
     const PROXY_URL = "https://script.google.com/macros/s/AKfycbwui4ZEpgCNC08tSbNHh_JNz6YojbVl9GD5CpOCdsYkSJNC3pBrT3spyn2TjYCyUuOm9w/exec"; 
     let scannedQueue = [], users = [], locations = [], statusLabels = [];
-    let isScanningLocked = false, infoMode = false, rangeMode = false;
+    let isScanningLocked = false, infoMode = false;
     let lastScanTime = 0;
 
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -147,12 +147,11 @@
 
     async function onScanSuccess(tag) {
         const now = Date.now();
-        // Prevent duplicate firing within 2 seconds
         if (isScanningLocked || (now - lastScanTime < 2000)) return;
         
         const cleanTag = tag.toString().toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
         
-        // Prevent duplicate items in the visible queue
+        // Prevent dupes in Queue Mode only
         if (!infoMode && scannedQueue.some(i => i.tag === cleanTag)) return;
 
         lastScanTime = now;
@@ -160,10 +159,15 @@
         playBeep();
 
         if (infoMode) {
+            document.getElementById('status').innerText = `🔍 Searching ${cleanTag}...`;
             try {
                 const res = await proxyRequest(`/hardware/bytag/${cleanTag}`);
                 displayInfo(res.id ? res : res.rows?.[0], cleanTag);
-            } catch (e) { alert("Search Error"); isScanningLocked = false; }
+            } catch (e) { 
+                alert("Search Error"); 
+                isScanningLocked = false; 
+                document.getElementById('status').innerText = "Ready";
+            }
             return;
         }
 
@@ -229,16 +233,46 @@
     }
 
     function displayInfo(asset, tag) {
-        if (!asset) { alert("Not found"); isScanningLocked = false; return; }
-        const rows = [ ["Tag", asset.asset_tag], ["Model", asset.model?.name], ["Status", asset.status_label?.name], ["Assigned", asset.assigned_to?.name || "Unassigned"] ];
-        document.getElementById('info-fields').innerHTML = rows.map(r => `<div style="margin-bottom:8px;"><small style="color:var(--secondary); font-weight:bold; display:block;">${r[0]}</small>${r[1]}</div>`).join('');
+        if (!asset) { 
+            alert(`Asset ${tag} not found.`); 
+            isScanningLocked = false; 
+            document.getElementById('status').innerText = "Ready";
+            return; 
+        }
+        const rows = [ ["Tag", asset.asset_tag], ["Model", asset.model?.name], ["Status", asset.status_label?.name], ["Assigned", asset.assigned_to?.name || "Unassigned"], ["Location", asset.location?.name || asset.default_location?.name || "N/A"] ];
+        document.getElementById('info-fields').innerHTML = rows.map(r => `<div style="margin-bottom:8px; border-bottom: 1px solid var(--border); padding-bottom: 4px;"><small style="color:var(--secondary); font-weight:bold; display:block; font-size: 10px;">${r[0]}</small>${r[1] || 'None'}</div>`).join('');
         document.getElementById('info-modal').style.display = 'flex';
+        document.getElementById('status').innerText = "Info Displayed";
     }
 
-    function closeInfoModal() { document.getElementById('info-modal').style.display = 'none'; isScanningLocked = false; infoMode = false; }
-    function startInfoScan() { infoMode = true; document.getElementById('status').innerText = "INFO MODE ACTIVE"; }
-    function toggleSection(id) { document.getElementById('manual-single').style.display = 'none'; document.getElementById('range-box').style.display = 'none'; document.getElementById(id).style.display = 'block'; }
-    async function proxyRequest(e, m="GET", p=null) { const r = await fetch(PROXY_URL, {method:'POST', body:JSON.stringify({endpoint:e, method:m, payload:p})}); return r.json(); }
+    function closeInfoModal() { 
+        document.getElementById('info-modal').style.display = 'none'; 
+        isScanningLocked = false; // RESTORE SCANNING ABILITY
+        infoMode = false; 
+        document.getElementById('info-btn').style.background = "var(--card-bg)";
+        document.getElementById('status').innerText = "Ready";
+    }
+
+    function startInfoScan() { 
+        infoMode = true; 
+        isScanningLocked = false; // ENSURE SCANNER IS ACTIVE
+        document.getElementById('info-btn').style.background = "var(--warning)";
+        document.getElementById('status').innerText = "INFO MODE ACTIVE: Scan tag"; 
+    }
+
+    function toggleSection(id) { 
+        infoMode = false; 
+        document.getElementById('info-btn').style.background = "var(--card-bg)";
+        document.getElementById('manual-single').style.display = 'none'; 
+        document.getElementById('range-box').style.display = 'none'; 
+        document.getElementById(id).style.display = 'block'; 
+    }
+
+    async function proxyRequest(e, m="GET", p=null) { 
+        const r = await fetch(PROXY_URL, {method:'POST', body:JSON.stringify({endpoint:e, method:m, payload:p})}); 
+        return r.json(); 
+    }
+    
     function removeFromQueue(i) { scannedQueue.splice(i, 1); updateUI(); }
     function clearBatch() { scannedQueue = []; updateUI(); }
     function showLoading(m) { document.getElementById('loading-msg').innerText = m; document.getElementById('loading-overlay').style.display = 'flex'; }
