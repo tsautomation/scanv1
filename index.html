@@ -19,13 +19,11 @@
         .btn-out { background: var(--danger); }
         .btn-audit { background: var(--secondary); }
         
-        /* Flash Animations */
         .flash-success { animation: flash-green 0.8s; }
         .flash-fail { animation: flash-red 0.8s; }
         @keyframes flash-green { 0% { background-color: #2ecc71; } 100% { background-color: var(--bg); } }
         @keyframes flash-red { 0% { background-color: #e74c3c; } 100% { background-color: var(--bg); } }
 
-        /* List & History */
         .scan-item { padding: 12px; border-bottom: 1px solid var(--border); }
         .status-tag { font-size: 11px; color: var(--secondary); display: block; margin-top: 4px; }
         .history-item { font-size: 12px; padding: 5px; border-bottom: 1px dotted var(--border); }
@@ -56,7 +54,7 @@
         <button onclick="applyGlobalToAll()" style="background: var(--warning); border:none; color:white; padding:8px; border-radius:5px; width:100%; font-size:11px; margin-top:5px; cursor:pointer;">🔄 Force Global Target onto List</button>
         
         <div id="checkin-options" style="margin-top:10px;">
-            <label><strong>Check-in Status Label:</strong></label>
+            <label><strong>Check-in Status:</strong></label>
             <select id="status-id"></select>
         </div>
     </div>
@@ -97,9 +95,11 @@
     const PROXY_URL = "https://script.google.com/macros/s/AKfycbwC1w3ymZQ6t4u4_V3o38gOWg3_LDSKxHwnpk4C9VxUpKUC2kPQVJwGV3Z9UfxmQC7mKg/exec";
 
     let scannedQueue = [], users = [], locations = [], statusLabels = [];
+    let lastScannedTag = null;
+    let lastScannedTime = 0;
+
     const beep = document.getElementById("beep"), statusDiv = document.getElementById("status");
 
-    // Initialize Scanner Optimized for Code 128
     const scanner = new Html5Qrcode("reader");
     scanner.start(
         { facingMode: "environment" }, 
@@ -144,9 +144,23 @@
     }
 
     async function onScanSuccess(tag) {
-        // Code 128 Sanitization
+        // 1. Sanitize for Code 128
         const cleanTag = tag.toString().toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
-        if (cleanTag.length < 5 || scannedQueue.some(i => i.tag === cleanTag)) return;
+        if (cleanTag.length < 5) return;
+
+        // 2. Temporal Duplicate Guard (2-second cooldown for the SAME tag)
+        const now = Date.now();
+        if (cleanTag === lastScannedTag && (now - lastScannedTime) < 2000) return;
+
+        // 3. Queue Guard (Strict check if already in the batch)
+        if (scannedQueue.some(i => i.tag === cleanTag)) {
+            statusDiv.innerText = "Already in batch: " + cleanTag;
+            return;
+        }
+
+        // Update tracking for the guard
+        lastScannedTag = cleanTag;
+        lastScannedTime = now;
 
         statusDiv.innerText = "Looking up: " + cleanTag;
 
@@ -155,7 +169,6 @@
             let asset = response.id ? response : (response.rows && response.rows.length > 0 ? response.rows[0] : null);
 
             if (asset && asset.id) {
-                // Flash Success
                 document.body.classList.add('flash-success');
                 setTimeout(() => document.body.classList.remove('flash-success'), 800);
                 beep.play();
@@ -230,7 +243,7 @@
             const item = scannedQueue[i];
             const listItem = document.getElementById(`item-${i}`);
             document.getElementById('progress-bar').style.width = ((i+1)/scannedQueue.length*100) + "%";
-            document.getElementById('progress-text').innerText = `Processing ${i+1}/${scannedQueue.length}...`;
+            document.getElementById('progress-text').innerText = `Syncing ${i+1}/${scannedQueue.length}...`;
 
             let endpoint = `/hardware/${item.id}/${action === 'IN' ? 'checkin' : 'checkout'}`;
             let payload = action === 'IN' ? { status_id: sId } : { checkout_to_type: item.target_type, [`assigned_${item.target_type}`]: item.target_id };
