@@ -139,9 +139,24 @@
     }
 
     async function proxyRequest(endpoint, method = "GET", payload = null) {
-        const res = await fetch(PROXY_URL, { method: 'POST', body: JSON.stringify({ endpoint, method, payload }) });
-        return res.json();
+    try {
+        const res = await fetch(PROXY_URL, { 
+            method: 'POST', 
+            mode: 'cors', // Force CORS mode
+            body: JSON.stringify({ endpoint, method, payload }) 
+        });
+        
+        if (!res.ok) throw new Error(`Network Error: ${res.status}`);
+        
+        const data = await res.json();
+        console.log("Server Response:", data);
+        return data;
+    } catch (e) {
+        console.error("Fetch failed:", e);
+        alert("Connection Failed: Check if PROXY_URL is correct and Deployed as 'Anyone'.");
+        throw e;
     }
+}
 
     function updateUI() {
         document.getElementById('count').innerText = queue.length;
