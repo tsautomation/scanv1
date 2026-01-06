@@ -15,7 +15,7 @@
         body { background: var(--bg); color: var(--text); font-family: -apple-system, system-ui, sans-serif; margin: 0; padding-bottom: 80px; overflow-x: hidden; }
         .container { padding: 15px; max-width: 500px; margin: auto; }
         
-        #reader { width: 100%; border-radius: 12px; overflow: hidden; background: #000; border: 2px solid var(--border); }
+        #reader { width: 100%; border-radius: 12px; overflow: hidden; background: #000; border: 4px solid var(--border); transition: border-color 0.2s; }
         .card { background: var(--card-bg); padding: 15px; border-radius: 12px; margin-top: 15px; border: 1px solid var(--border); box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
         
         input, select { 
@@ -29,6 +29,13 @@
         .tag-info { flex: 1; min-width: 0; }
         .tag-main { font-weight: bold; font-size: 15px; display: block; }
         .tag-subtext { font-size: 12px; color: var(--secondary); display: block; }
+
+        /* Animation for scan success */
+        @keyframes scan-flash {
+            0% { border-color: var(--primary); box-shadow: 0 0 20px var(--primary); }
+            100% { border-color: var(--border); box-shadow: none; }
+        }
+        .flash-active { animation: scan-flash 0.5s ease-out; }
 
         #info-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:4000; justify-content:center; align-items:center; }
         .info-card { background:var(--card-bg); width:85%; max-width:380px; border-radius:15px; padding:20px; border-top: 5px solid var(--warning); box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
@@ -44,7 +51,7 @@
 
 <div id="loading-overlay">
     <div style="border:4px solid #fff; border-left-color:var(--secondary); width:30px; height:30px; border-radius:50%; animation:spin 1s linear infinite;"></div>
-    <div id="loading-msg" style="margin-top:15px; font-weight:bold;">Syncing...</div>
+    <div id="loading-msg" style="margin-top:15px; font-weight:bold;">Processing...</div>
 </div>
 
 <div id="info-modal">
@@ -62,7 +69,7 @@
     </div>
     
     <div id="reader"></div>
-    <div id="status" style="text-align:center; padding:8px; font-size:12px; font-weight:bold; color: var(--secondary);">Ready</div>
+    <div id="status" style="text-align:center; padding:8px; font-size:12px; font-weight:bold; color: var(--secondary);">Connecting...</div>
 
     <div style="display: flex; gap: 5px; margin-top: 5px;">
         <button id="info-btn" onclick="startInfoScan()" style="flex:1; padding:12px; font-size:11px; border-radius:8px; border:2px solid var(--warning); background:var(--card-bg); color:var(--text); font-weight:bold;">🔍 Info Scan</button>
@@ -78,8 +85,8 @@
     <div id="range-box" class="card" style="display:none; border-style:dashed;">
         <div id="range-status" style="font-size:12px; text-align:center; padding:8px; margin-bottom:10px; font-weight:bold; background:rgba(52, 152, 219, 0.1); border-radius:5px;">Step 1: Scan START Tag</div>
         <div style="display: flex; gap: 5px;">
-            <input type="text" id="range-start-input" placeholder="Start Tag" style="text-transform:uppercase;">
-            <input type="text" id="range-end-input" placeholder="End Tag" style="text-transform:uppercase;">
+            <input type="text" id="range-start-input" placeholder="Start" style="text-transform:uppercase;">
+            <input type="text" id="range-end-input" placeholder="End" style="text-transform:uppercase;">
         </div>
         <button onclick="manualRangeSubmit()" class="btn" style="background:var(--primary); width:100%;">Process Range</button>
         <button onclick="exitRangeMode()" class="btn" style="background:var(--danger); width:100%; padding:8px; font-size:11px;">Cancel</button>
@@ -100,7 +107,7 @@
         <div id="scan-list" style="max-height:250px; overflow-y:auto; margin-top:10px; border:1px solid var(--border); border-radius:8px;"></div>
         
         <div id="batch-controls" style="display:none; flex-direction:column; gap:5px; margin-top:10px;">
-            <button class="btn" style="background:var(--primary)" onclick="('IN')">Check-In All</button>
+            <button class="btn" style="background:var(--primary)" onclick="processBatch('IN')">Check-In All</button>
             <button class="btn" style="background:var(--danger)" onclick="processBatch('OUT')">Check-Out All</button>
             <button class="btn" style="background:var(--warning); color:#222" onclick="processBatch('AUDIT')">Official Audit</button>
         </div>
@@ -112,6 +119,20 @@
     let scannedQueue = [], users = [], locations = [], statusLabels = [];
     let isScanningLocked = false, infoMode = false, rangeMode = false;
 
+    // Audio Feedback Context
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playBeep() {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.type = "sine";
+        osc.frequency.value = 880; // High A
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.1);
+    }
+
     const scanner = new Html5Qrcode("reader");
     scanner.start({ facingMode: "environment" }, { fps: 20, qrbox: { width: 250, height: 120 } }, onScanSuccess);
 
@@ -119,17 +140,21 @@
         if (isScanningLocked) return;
         const cleanTag = tag.toString().toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
 
+        // Feedback
+        playBeep();
+        const rEl = document.getElementById('reader');
+        rEl.classList.remove('flash-active');
+        void rEl.offsetWidth;
+        rEl.classList.add('flash-active');
+
         if (infoMode) {
             isScanningLocked = true;
-            document.getElementById('status').innerText = "Fetching Info...";
+            document.getElementById('status').innerText = `🔍 Fetching ${cleanTag}...`;
             try {
                 const res = await proxyRequest(`/hardware/bytag/${cleanTag}`);
                 const asset = res.id ? res : (res.rows?.[0] || null);
                 displayInfo(asset, cleanTag);
-            } catch (e) {
-                alert("Search Error");
-                isScanningLocked = false;
-            }
+            } catch (e) { alert("Error"); isScanningLocked = false; }
             return;
         }
 
@@ -139,7 +164,7 @@
             if (!startIn.value) {
                 isScanningLocked = true;
                 startIn.value = cleanTag;
-                document.getElementById('range-status').innerHTML = "✅ START: " + cleanTag + "<br>Now Scan END Tag";
+                document.getElementById('range-status').innerHTML = `✅ START: ${cleanTag}<br>Scan END Tag`;
                 setTimeout(() => { isScanningLocked = false; }, 1500);
             } else if (!endIn.value && cleanTag !== startIn.value) {
                 isScanningLocked = true;
@@ -149,57 +174,28 @@
             return;
         }
 
+        // Add to standard queue
+        document.getElementById('status').innerText = `✅ Added ${cleanTag}`;
+        setTimeout(() => { document.getElementById('status').innerText = "Ready"; }, 1500);
         addAssetToQueue(cleanTag);
     }
 
-    function startInfoScan() {
-        infoMode = true;
-        rangeMode = false;
-        isScanningLocked = false;
-        document.getElementById('info-btn').style.background = "var(--warning)";
-        document.getElementById('info-btn').style.color = "white";
-        document.getElementById('status').innerText = "INFO MODE: Scan any tag";
-        document.getElementById('manual-single').style.display = 'none';
-        document.getElementById('range-box').style.display = 'none';
-    }
-
     function displayInfo(asset, tag) {
-        if (!asset) { 
-            alert("Asset " + tag + " not found"); 
-            closeInfoModal(); 
-            return; 
-        }
-        
-        // Changed "Asset Name / Model" to "Model" 
-        // Added distinct "Asset Name" field
+        if (!asset) { alert("Not found"); closeInfoModal(); return; }
         const rows = [
             {l: "Asset Tag", v: asset.asset_tag},
             {l: "Asset Name", v: asset.name},
             {l: "Model", v: asset.model?.name},
-            {l: "Current Status", v: asset.status_label?.name},
+            {l: "Status", v: asset.status_label?.name},
             {l: "Location", v: asset.location?.name || asset.default_location?.name},
             {l: "Assigned To", v: asset.assigned_to?.name || "Unassigned"},
-            {l: "Serial Number", v: asset.serial},
+            {l: "Serial", v: asset.serial},
             {l: "Last Audit", v: asset.last_audit_date?.formatted || 'Never'}
         ];
-        
         document.getElementById('info-fields').innerHTML = rows.map(r => `
-            <div class="info-row">
-                <span class="info-label">${r.l}</span>
-                <span class="info-val">${r.v || 'N/A'}</span>
-            </div>
+            <div class="info-row"><span class="info-label">${r.l}</span><span class="info-val">${r.v || 'N/A'}</span></div>
         `).join('');
-        
         document.getElementById('info-modal').style.display = 'flex';
-    }
-
-    function closeInfoModal() {
-        document.getElementById('info-modal').style.display = 'none';
-        infoMode = false;
-        isScanningLocked = false;
-        document.getElementById('info-btn').style.background = "var(--card-bg)";
-        document.getElementById('info-btn').style.color = "var(--text)";
-        document.getElementById('status').innerText = "Ready";
     }
 
     async function addAssetToQueue(tag) {
@@ -215,30 +211,37 @@
         } finally { setTimeout(() => { isScanningLocked = false; }, 1000); }
     }
 
-    async function manualRangeSubmit() {
-        const start = document.getElementById('range-start-input').value.toUpperCase();
-        const end = document.getElementById('range-end-input').value.toUpperCase();
-        if (!start || !end) return alert("Missing tags");
+    async function processBatch(type) {
+        if (!scannedQueue.length) return;
+        const targetName = document.getElementById('target-id').options[document.getElementById('target-id').selectedIndex].text;
+        const emailPayload = {
+            action: type,
+            count: scannedQueue.length,
+            details: scannedQueue.map(a => `${a.tag} (${a.name}) ➔ ${targetName}`)
+        };
 
-        showLoading("Searching Range...");
-        const prefix = start.match(/^[A-Z]*/)[0];
-        const sMatch = start.match(/\d+/);
-        const eMatch = end.match(/\d+/);
-        if(!sMatch || !eMatch) return alert("Invalid Numbers");
+        showLoading("Syncing with Snipe-IT...");
+        const tId = document.getElementById('target-id').value;
+        const tType = document.getElementById('target-type').value;
+        const sId = document.getElementById('status-id').value;
 
-        const sNum = parseInt(sMatch[0]), eNum = parseInt(eMatch[0]);
-        const low = Math.min(sNum, eNum), high = Math.max(sNum, eNum);
-        const pad = sMatch[0].length;
-
-        for (let i = low; i <= high; i++) {
-            const currentTag = prefix + i.toString().padStart(pad, '0');
-            if (!scannedQueue.some(q => q.tag === currentTag)) {
-                const res = await proxyRequest(`/hardware/bytag/${currentTag}`);
-                const asset = res.id ? res : (res.rows?.[0] || null);
-                if (asset) scannedQueue.push({ id: asset.id, tag: currentTag, name: asset.model.name });
+        try {
+            for (const asset of scannedQueue) {
+                let ep = `/hardware/${asset.id}/audit`, m = "POST", p = { asset_tag: asset.tag, location_id: tId };
+                if (type === 'OUT') { 
+                    ep = `/hardware/${asset.id}/checkout`; 
+                    p = { checkout_to_type: tType, assigned_user: tId, assigned_location: tId, status_id: sId }; 
+                } else if (type === 'IN') { 
+                    ep = `/hardware/${asset.id}/checkin`; 
+                    p = { status_id: sId }; 
+                }
+                await proxyRequest(ep, m, p);
             }
-        }
-        updateUI(); hideLoading(); exitRangeMode();
+            showLoading("Sending PDF Report...");
+            await proxyRequest('email-log', 'POST', emailPayload);
+            alert("Success! Snipe-IT updated and PDF emailed.");
+            scannedQueue = []; updateUI();
+        } catch (e) { alert("Error processing batch."); } finally { hideLoading(); }
     }
 
     function updateUI() {
@@ -246,77 +249,29 @@
         const target = sel.options[sel.selectedIndex]?.text || "...";
         document.getElementById('scan-list').innerHTML = scannedQueue.map((item, idx) => `
             <div class="scan-item">
-                <div class="tag-info">
-                    <span class="tag-main">${item.tag}</span>
-                    <span class="tag-subtext">${item.name} ➔ ${target}</span>
-                </div>
+                <div class="tag-info"><span class="tag-main">${item.tag}</span><span class="tag-subtext">${item.name} ➔ ${target}</span></div>
                 <button onclick="removeFromQueue(${idx})" style="border:none; background:none; color:var(--danger); font-size:24px;">&times;</button>
             </div>`).join('');
         document.getElementById('batch-controls').style.display = scannedQueue.length > 0 ? 'flex' : 'none';
         document.getElementById('count').innerText = scannedQueue.length;
     }
 
-    async function processBatch(type) {
-    if (!scannedQueue.length) return;
-    
-    // 1. Prepare data exactly as the Google Script 'sendEmailWithPDF' expects it
-    const targetName = document.getElementById('target-id').options[document.getElementById('target-id').selectedIndex].text;
-    const emailPayload = {
-        action: type, // 'IN', 'OUT', or 'AUDIT'
-        count: scannedQueue.length,
-        details: scannedQueue.map(a => `${a.tag} (${a.name}) ➔ ${targetName}`)
-    };
-
-    showLoading("Syncing with Snipe-IT...");
-    
-    const tId = document.getElementById('target-id').value;
-    const tType = document.getElementById('target-type').value;
-    const sId = document.getElementById('status-id').value;
-
-    try {
-        // 2. Process the individual API calls to Snipe-IT
-        for (const asset of scannedQueue) {
-            let ep = `/hardware/${asset.id}/audit`, m = "POST", p = { asset_tag: asset.tag, location_id: tId };
-            
-            if (type === 'OUT') { 
-                ep = `/hardware/${asset.id}/checkout`; 
-                p = { checkout_to_type: tType, assigned_user: tId, assigned_location: tId, status_id: sId }; 
-            } else if (type === 'IN') { 
-                ep = `/hardware/${asset.id}/checkin`; 
-                p = { status_id: sId }; 
-            }
-            await proxyRequest(ep, m, p);
-        }
-
-        // 3. Trigger the PDF Email Report
-        // Using the endpoint 'email-log' as defined in your doPost
-        showLoading("Generating PDF Report...");
-        await proxyRequest('email-log', 'POST', emailPayload);
-
-        alert("Success! Snipe-IT updated and PDF report emailed.");
-        scannedQueue = []; 
-        updateUI();
-    } catch (e) {
-        alert("Batch completed, but there was an error sending the PDF report.");
-        console.error(e);
-    } finally {
-        hideLoading();
-    }
-}
-
     function toggleSection(id) {
         infoMode = false;
         document.getElementById('info-btn').style.background = "var(--card-bg)";
-        document.getElementById('info-btn').style.color = "var(--text)";
         document.getElementById('manual-single').style.display = 'none';
         document.getElementById('range-box').style.display = 'none';
         document.getElementById(id).style.display = 'block';
         rangeMode = (id === 'range-box');
-        if(rangeMode) {
-            document.getElementById('range-start-input').value = '';
-            document.getElementById('range-end-input').value = '';
-            document.getElementById('range-status').innerHTML = "Step 1: Scan START Tag";
-        }
+        if(rangeMode) { document.getElementById('range-start-input').value = ''; document.getElementById('range-end-input').value = ''; }
+    }
+
+    function startInfoScan() {
+        infoMode = true; rangeMode = false; isScanningLocked = false;
+        document.getElementById('info-btn').style.background = "var(--warning)";
+        document.getElementById('status').innerText = "INFO MODE: Scan tag";
+        document.getElementById('manual-single').style.display = 'none';
+        document.getElementById('range-box').style.display = 'none';
     }
 
     function filterAssignList() {
@@ -328,11 +283,32 @@
         updateUI();
     }
 
+    async function manualRangeSubmit() {
+        const start = document.getElementById('range-start-input').value.toUpperCase();
+        const end = document.getElementById('range-end-input').value.toUpperCase();
+        if (!start || !end) return alert("Missing tags");
+        showLoading("Searching Range...");
+        const prefix = start.match(/^[A-Z]*/)[0];
+        const sMatch = start.match(/\d+/), eMatch = end.match(/\d+/);
+        const sNum = parseInt(sMatch[0]), eNum = parseInt(eMatch[0]);
+        const low = Math.min(sNum, eNum), high = Math.max(sNum, eNum), pad = sMatch[0].length;
+        for (let i = low; i <= high; i++) {
+            const currentTag = prefix + i.toString().padStart(pad, '0');
+            if (!scannedQueue.some(q => q.tag === currentTag)) {
+                const res = await proxyRequest(`/hardware/bytag/${currentTag}`);
+                const asset = res.id ? res : (res.rows?.[0] || null);
+                if (asset) scannedQueue.push({ id: asset.id, tag: currentTag, name: asset.model.name });
+            }
+        }
+        updateUI(); hideLoading(); exitRangeMode();
+    }
+
     async function proxyRequest(e, m="GET", p=null) { 
         const r = await fetch(PROXY_URL, {method:'POST', body:JSON.stringify({endpoint:e, method:m, payload:p})}); 
         return r.json(); 
     }
 
+    function closeInfoModal() { document.getElementById('info-modal').style.display = 'none'; infoMode = false; isScanningLocked = false; document.getElementById('info-btn').style.background = "var(--card-bg)"; document.getElementById('status').innerText = "Ready"; }
     function addManualTag() { const t = document.getElementById('manual-tag').value.toUpperCase(); if(t) addAssetToQueue(t); document.getElementById('manual-tag').value = ''; }
     function removeFromQueue(i) { scannedQueue.splice(i, 1); updateUI(); }
     function clearBatch() { scannedQueue = []; updateUI(); }
@@ -340,6 +316,7 @@
     function showLoading(m) { document.getElementById('loading-msg').innerText = m; document.getElementById('loading-overlay').style.display = 'flex'; }
     function hideLoading() { document.getElementById('loading-overlay').style.display = 'none'; }
     function toggleDarkMode() { document.documentElement.setAttribute("data-theme", document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark"); }
+    function toggleTargetList() { document.getElementById('assign-search').value = ''; filterAssignList(); }
 
     async function loadResources() {
         try {
@@ -350,8 +327,6 @@
             document.getElementById('status').innerText = "Ready";
         } catch (e) { document.getElementById('status').innerText = "Error"; }
     }
-
-    function toggleTargetList() { document.getElementById('assign-search').value = ''; filterAssignList(); }
     loadResources();
 </script>
 </body>
