@@ -8,73 +8,83 @@
     <style>
         :root { --bg: #f8f9fa; --card-bg: #ffffff; --text: #2c3e50; --border: #dddddd; --primary: #2ecc71; --secondary: #3498db; --danger: #e74c3c; --warning: #f39c12; }
         [data-theme="dark"] { --bg: #121212; --card-bg: #1e1e1e; --text: #e0e0e0; --border: #333333; }
-        body { background: var(--bg); color: var(--text); font-family: -apple-system, system-ui, sans-serif; margin: 0; transition: background 0.3s; overflow-x: hidden; }
+        body { background: var(--bg); color: var(--text); font-family: -apple-system, system-ui, sans-serif; margin: 0; overflow-x: hidden; }
         .container { padding: 15px; max-width: 500px; margin: auto; }
         #reader { width: 100%; border-radius: 12px; overflow: hidden; background: #000; border: 2px solid var(--border); }
         .card { background: var(--card-bg); padding: 15px; border-radius: 12px; margin-top: 15px; border: 1px solid var(--border); box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
         input, select { background: var(--card-bg); color: var(--text); border: 1px solid var(--border); width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; font-size: 16px; box-sizing: border-box; }
         .btn { padding: 15px; border: none; border-radius: 8px; color: white; font-weight: bold; width: 100%; margin-top: 10px; font-size: 16px; cursor: pointer; }
-        .btn-in { background: var(--primary); }
-        .btn-out { background: var(--danger); }
-        .btn-audit { background: var(--warning); color: #222; }
+        .btn-secondary { background: var(--secondary); }
         
-        /* Spinner Styles */
-        .spinner { border: 4px solid rgba(0,0,0,0.1); width: 36px; height: 36px; border-radius: 50%; border-left-color: var(--secondary); animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; margin-right: 10px; }
+        .spinner { border: 4px solid rgba(0,0,0,0.1); width: 36px; height: 36px; border-radius: 50%; border-left-color: var(--secondary); animation: spin 1s linear infinite; display: inline-block; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        #loading-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:3000; color:white; flex-direction:column; justify-content:center; align-items:center; }
-
+        #loading-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:3000; color:white; flex-direction:column; justify-content:center; align-items:center; }
+        
+        .tab-btn { flex:1; padding:10px; border:none; background:var(--bg); color:var(--text); cursor:pointer; font-size:12px; border-bottom: 2px solid transparent; }
+        .tab-btn.active { border-bottom: 2px solid var(--secondary); font-weight:bold; }
+        
         .flash-success { animation: flash-green 0.8s; }
-        .flash-fail { animation: flash-red 0.8s; }
         @keyframes flash-green { 0% { background-color: #2ecc71; } 100% { background-color: var(--bg); } }
-        @keyframes flash-red { 0% { background-color: #e74c3c; } 100% { background-color: var(--bg); } }
-
-        .scan-item { padding: 12px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
-        .tag-info { font-size: 14px; }
-        .tag-subtext { font-size: 11px; color: #7f8c8d; display: block; }
-        #progress-bar { height: 10px; background: var(--secondary); width: 0%; border-radius: 5px; transition: width 0.3s; }
-        #audit-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.95); z-index:1000; overflow-y:auto; padding:20px; color:white; box-sizing: border-box; }
     </style>
 </head>
 <body>
 
 <div id="loading-overlay">
     <div class="spinner"></div>
-    <div id="loading-msg" style="margin-top:15px; font-weight:bold;">Processing Range...</div>
+    <div id="loading-msg" style="margin-top:15px; font-weight:bold;">Processing...</div>
 </div>
 
 <div class="container">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
         <h2 style="margin: 0;">📦 SnipeScan Pro</h2>
         <div style="display: flex; gap: 15px; align-items: center;">
-            <button id="sound-toggle" onclick="toggleSound()" style="background:none; border:none; font-size: 24px; cursor:pointer;">🔇</button>
-            <button onclick="toggleDarkMode()" style="background:none; border:none; font-size: 24px; cursor:pointer;">🌙</button>
+            <button id="sound-toggle" onclick="toggleSound()" style="background:none; border:none; font-size: 24px;">🔇</button>
+            <button onclick="toggleDarkMode()" style="background:none; border:none; font-size: 24px;">🌙</button>
         </div>
     </div>
     
     <div id="reader"></div>
     <div id="status" style="text-align:center; padding:10px; font-size:14px; font-weight:bold; color: var(--secondary);">Connecting...</div>
 
-    <div style="margin-top: 10px; text-align: center; display: flex; justify-content: center; gap: 10px;">
-        <button onclick="toggleManualInput()" id="manual-toggle-btn" style="background:none; border:1px solid var(--border); color:var(--text); padding:8px 15px; border-radius:20px; font-size:12px; cursor:pointer;">⌨️ Manual</button>
-        <button onclick="toggleRangeMode()" id="range-toggle-btn" style="background:none; border:1px solid var(--border); color:var(--text); padding:8px 15px; border-radius:20px; font-size:12px; cursor:pointer;">🔢 Range Mode: OFF</button>
+    <div style="display: flex; gap: 10px; margin-top: 10px;">
+        <button onclick="toggleSection('manual-single')" class="btn-secondary" style="flex:1; padding:8px; font-size:12px; border-radius:20px; border:none; color:white;">⌨️ Single Manual</button>
+        <button onclick="toggleSection('range-box')" class="btn-secondary" style="flex:1; padding:8px; font-size:12px; border-radius:20px; border:none; color:white;">🔢 Range Mode</button>
     </div>
 
-    <div id="manual-input-container" class="card" style="display:none; border-style: dashed; padding: 10px; margin-top: 10px;">
+    <div id="manual-single" class="card" style="display:none; border-style:dashed;">
         <div style="display: flex; gap: 10px;">
-            <input type="text" id="manual-tag" placeholder="Type Asset Tag..." style="margin: 0; flex-grow: 1; text-transform: uppercase;">
-            <button onclick="addManualTag()" style="background: var(--secondary); color: white; border: none; border-radius: 8px; padding: 0 15px; font-weight: bold; cursor: pointer;">Add</button>
+            <input type="text" id="manual-tag" placeholder="Type Asset Tag..." style="margin:0; text-transform:uppercase;">
+            <button onclick="addManualTag()" style="background:var(--secondary); color:white; border:none; border-radius:8px; padding:0 15px;">Add</button>
+        </div>
+    </div>
+
+    <div id="range-box" class="card" style="display:none; border-style:dashed; padding:0;">
+        <div style="display:flex; border-bottom:1px solid var(--border);">
+            <button id="tab-cam" class="tab-btn active" onclick="setRangeTab('cam')">Camera Scan</button>
+            <button id="tab-man" class="tab-btn" onclick="setRangeTab('man')">Manual Entry</button>
+        </div>
+        
+        <div id="range-cam-ui" style="padding:15px; text-align:center;">
+            <p id="range-status" style="font-size:13px; margin:0 0 10px 0;">Aim camera at the <b>FIRST</b> asset.</p>
+            <button onclick="exitRangeMode()" style="background:var(--danger); border:none; color:white; padding:5px 10px; border-radius:5px; font-size:11px;">Cancel Range</button>
+        </div>
+
+        <div id="range-man-ui" style="padding:15px; display:none;">
+            <input type="text" id="range-start" placeholder="Start Tag (e.g. CWA001)" style="text-transform:uppercase;">
+            <input type="text" id="range-end" placeholder="End Tag (e.g. CWA050)" style="text-transform:uppercase;">
+            <button onclick="processManualRange()" class="btn btn-secondary" style="margin-top:0;">Generate & Add Range</button>
         </div>
     </div>
 
     <div class="card">
-        <label><strong>1. Assign & Update Status</strong></label>
+        <label><strong>1. Assign Details</strong></label>
         <select id="target-type" onchange="toggleTargetList()">
             <option value="user">Assign to: Person</option>
             <option value="location">Assign to: Location</option>
         </select>
         <select id="target-id"></select>
         <select id="status-id"></select>
-        <button onclick="applyGlobalToAll()" style="background: #95a5a6; border:none; color:white; padding:10px; border-radius:8px; width:100%; font-size:12px; margin-top:5px; cursor:pointer;">🔄 Apply to All in Queue</button>
+        <button onclick="applyGlobalToAll()" style="background:#95a5a6; border:none; color:white; padding:8px; border-radius:8px; width:100%; font-size:11px; margin-top:5px;">🔄 Apply to All in Queue</button>
     </div>
 
     <div class="card">
@@ -82,17 +92,12 @@
             <strong>Queue (<span id="count">0</span>)</strong>
             <button onclick="clearBatch()" style="font-size:11px; color:var(--danger); background:none; border:none;">Clear All</button>
         </div>
-
-        <button id="clean-btn" onclick="cleanList()" style="display:none; background:var(--danger); color:white; border:none; border-radius:8px; padding:12px; width:100%; margin:10px 0; font-weight:bold; cursor:pointer;">
-            ⚠️ Remove All Duplicates
-        </button>
-
-        <div id="scan-list" style="margin-top:10px; max-height:280px; overflow-y:auto; border:1px solid var(--border); border-radius:8px;"></div>
-
+        <button id="clean-btn" onclick="cleanList()" style="display:none; background:var(--danger); color:white; border:none; border-radius:8px; padding:12px; width:100%; margin:10px 0; font-weight:bold;">⚠️ Remove Duplicates</button>
+        <div id="scan-list" style="margin-top:10px; max-height:200px; overflow-y:auto; border:1px solid var(--border); border-radius:8px;"></div>
         <div id="batch-controls" style="display:none;">
-            <button class="btn btn-out" onclick="processBatch('OUT')">Process Check-Out</button>
-            <button class="btn btn-in" onclick="processBatch('IN')">Process Check-In</button>
-            <button class="btn btn-audit" onclick="processBatch('AUDIT')">Submit Official Audit</button>
+            <button class="btn" style="background:var(--danger)" onclick="processBatch('OUT')">Check-Out</button>
+            <button class="btn" style="background:var(--primary)" onclick="processBatch('IN')">Check-In</button>
+            <button class="btn" style="background:var(--warning); color:#222" onclick="processBatch('AUDIT')">Official Audit</button>
         </div>
     </div>
 </div>
@@ -101,7 +106,6 @@
 
 <script>
     const PROXY_URL = "https://script.google.com/macros/s/AKfycbwui4ZEpgCNC08tSbNHh_JNz6YojbVl9GD5CpOCdsYkSJNC3pBrT3spyn2TjYCyUuOm9w/exec"; 
-
     let scannedQueue = [], users = [], locations = [], statusLabels = [];
     let isScanningLocked = false, soundEnabled = false;
     let rangeMode = false, rangeStartTag = null;
@@ -110,120 +114,81 @@
     const scanner = new Html5Qrcode("reader");
     scanner.start({ facingMode: "environment" }, { fps: 20, qrbox: { width: 250, height: 100 } }, onScanSuccess);
 
-    function toggleSound() {
-        soundEnabled = !soundEnabled;
-        document.getElementById("sound-toggle").innerText = soundEnabled ? "🔊" : "🔇";
-        if (soundEnabled) { beep.volume = 0; beep.play().then(() => { beep.pause(); beep.volume = 1; }); }
+    function toggleSection(id) {
+        const el = document.getElementById(id);
+        const isOpen = el.style.display === 'block';
+        document.getElementById('manual-single').style.display = 'none';
+        document.getElementById('range-box').style.display = 'none';
+        el.style.display = isOpen ? 'none' : 'block';
+        rangeMode = (id === 'range-box' && !isOpen);
+        if(!rangeMode) exitRangeMode();
     }
 
-    function toggleManualInput() {
-        const container = document.getElementById('manual-input-container');
-        container.style.display = container.style.display === 'none' ? 'block' : 'none';
-        if(container.style.display === 'block') document.getElementById('manual-tag').focus();
-    }
-
-    function toggleRangeMode() {
-        rangeMode = !rangeMode;
-        rangeStartTag = null;
-        const btn = document.getElementById('range-toggle-btn');
-        btn.innerText = rangeMode ? "🔢 Range Mode: WAITING..." : "🔢 Range Mode: OFF";
-        btn.style.borderColor = rangeMode ? "var(--secondary)" : "var(--border)";
-        statusDiv.innerText = rangeMode ? "Scan FIRST asset in range" : "Scanner Ready";
-    }
-
-    async function proxyRequest(endpoint, method = "GET", payload = null) {
-        const res = await fetch(PROXY_URL, { method: 'POST', body: JSON.stringify({ endpoint, method, payload }) });
-        return res.json();
-    }
-
-    async function loadResources() {
-        try {
-            const [u, l, s] = await Promise.all([proxyRequest('/users?limit=500'), proxyRequest('/locations?limit=500'), proxyRequest('/statuslabels')]);
-            users = u.rows; locations = l.rows; statusLabels = s.rows;
-            toggleTargetList();
-            document.getElementById('status-id').innerHTML = statusLabels.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
-            statusDiv.innerText = "Scanner Ready";
-        } catch (e) { statusDiv.innerText = "Connection Error"; }
-    }
-
-    function toggleTargetList() {
-        const list = (document.getElementById('target-type').value === 'user') ? users : locations;
-        document.getElementById('target-id').innerHTML = list.map(i => `<option value="${i.id}">${i.name || i.display_name}</option>`).join('');
+    function setRangeTab(mode) {
+        document.getElementById('range-cam-ui').style.display = mode === 'cam' ? 'block' : 'none';
+        document.getElementById('range-man-ui').style.display = mode === 'man' ? 'block' : 'none';
+        document.getElementById('tab-cam').classList.toggle('active', mode === 'cam');
+        document.getElementById('tab-man').classList.toggle('active', mode === 'man');
+        rangeMode = (mode === 'cam');
     }
 
     async function onScanSuccess(tag) {
-    if (isScanningLocked) return;
-    const cleanTag = tag.toString().toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
+        if (isScanningLocked) return;
+        const cleanTag = tag.toString().toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
 
-    // --- UPDATED RANGE MODE LOGIC ---
-    if (rangeMode) {
-        if (!rangeStartTag) {
-            rangeStartTag = cleanTag;
-            isScanningLocked = true; // Stop camera interference
-            
-            // Visual feedback
-            if(soundEnabled) beep.play();
-            
-            const proceed = confirm(`START TAG CAPTURED: ${cleanTag}\n\nReady to scan the END tag?`);
-            
-            if (proceed) {
-                document.getElementById('range-toggle-btn').innerText = "🔢 END TAG: WAITING...";
-                statusDiv.innerText = "Aim at the LAST asset in the range";
-                // Short delay so you can reposition the phone before camera re-activates
-                setTimeout(() => { isScanningLocked = false; }, 1000); 
+        if (rangeMode) {
+            if (!rangeStartTag) {
+                rangeStartTag = cleanTag;
+                isScanningLocked = true;
+                if(soundEnabled) beep.play();
+                if(confirm(`START TAG: ${cleanTag}\n\nReady to scan END tag?`)) {
+                    document.getElementById('range-status').innerHTML = `START: <b>${cleanTag}</b><br>Now aim at <b>LAST</b> asset.`;
+                    setTimeout(() => isScanningLocked = false, 1200);
+                } else { exitRangeMode(); }
+                return;
             } else {
-                toggleRangeMode(); // Cancel if they hit cancel
+                await processRange(rangeStartTag, cleanTag);
+                exitRangeMode();
+                return;
             }
-            return;
-        } else {
-            // Second tag captured
-            await processRange(rangeStartTag, cleanTag);
-            toggleRangeMode();
-            return;
         }
+
+        if (scannedQueue.some(i => i.tag === cleanTag)) return;
+        isScanningLocked = true;
+        try {
+            const res = await proxyRequest(`/hardware/bytag/${cleanTag}`);
+            let asset = res.id ? res : (res.rows?.[0] || null);
+            if (asset) processValidAsset(asset, cleanTag);
+            else triggerFail(cleanTag);
+        } finally { setTimeout(() => isScanningLocked = false, 2000); }
     }
 
-    // Standard scanning logic remains the same...
-    if (scannedQueue.some(i => i.tag === cleanTag)) return;
-    isScanningLocked = true;
-    try {
-        const response = await proxyRequest(`/hardware/bytag/${cleanTag}`);
-        let asset = response.id ? response : (response.rows && response.rows.length > 0 ? response.rows[0] : null);
-        if (asset && asset.id) { processValidAsset(asset, cleanTag); } 
-        else { triggerFail(cleanTag); }
-    } finally { setTimeout(() => { isScanningLocked = false; }, 2000); }
-}
+    async function processManualRange() {
+        const start = document.getElementById('range-start').value.trim();
+        const end = document.getElementById('range-end').value.trim();
+        if(!start || !end) return alert("Enter both tags");
+        await processRange(start.toUpperCase(), end.toUpperCase());
+    }
 
     async function processRange(start, end) {
-        const matchStart = start.match(/^([A-Z]*)(\d+)$/);
-        const matchEnd = end.match(/^([A-Z]*)(\d+)$/);
-
-        if (!matchStart || !matchEnd || matchStart[1] !== matchEnd[1]) {
-            alert("Range error: Prefixes must match (e.g., CWA)");
-            return;
-        }
-
-        const prefix = matchStart[1], startNum = parseInt(matchStart[2]), endNum = parseInt(matchEnd[2]), padding = matchStart[2].length;
-        if (startNum >= endNum) { alert("Start tag must be lower than end tag."); return; }
-        const count = (endNum - startNum) + 1;
-        if (!confirm(`Process range of ${count} assets?`)) return;
+        const mS = start.match(/^([A-Z]*)(\d+)$/), mE = end.match(/^([A-Z]*)(\d+)$/);
+        if (!mS || !mE || mS[1] !== mE[1]) return alert("Prefix mismatch (e.g. CWA)");
+        
+        const prefix = mS[1], sNum = parseInt(mS[2]), eNum = parseInt(mE[2]), pad = mS[2].length;
+        if (sNum >= eNum) return alert("Start must be lower than End");
+        
+        const count = (eNum - sNum) + 1;
+        if (!confirm(`Lookup ${count} assets?`)) return;
 
         showSpinner(`Fetching ${count} assets...`);
-        for (let i = startNum; i <= endNum; i++) {
-            const currentTag = prefix + i.toString().padStart(padding, '0');
-            if (scannedQueue.some(item => item.tag === currentTag)) continue;
-            document.getElementById('loading-msg').innerText = `Fetching ${currentTag}...`;
+        for (let i = sNum; i <= eNum; i++) {
+            const tag = prefix + i.toString().padStart(pad, '0');
+            if (scannedQueue.some(item => item.tag === tag)) continue;
+            document.getElementById('loading-msg').innerText = `Searching ${tag}...`;
             try {
-                const res = await proxyRequest(`/hardware/bytag/${currentTag}`);
-                let asset = res.id ? res : (res.rows && res.rows.length > 0 ? res.rows[0] : null);
-                if (asset && asset.id) {
-                    scannedQueue.push({ 
-                        id: asset.id, tag: currentTag, name: asset.model.name, 
-                        target_type: document.getElementById('target-type').value, 
-                        target_id: document.getElementById('target-id').value, 
-                        target_name: document.getElementById('target-id').options[document.getElementById('target-id').selectedIndex].text 
-                    });
-                }
+                const res = await proxyRequest(`/hardware/bytag/${tag}`);
+                let asset = res.id ? res : (res.rows?.[0] || null);
+                if (asset) scannedQueue.push({ id: asset.id, tag: tag, name: asset.model.name, target_type: document.getElementById('target-type').value, target_id: document.getElementById('target-id').value, target_name: document.getElementById('target-id').options[document.getElementById('target-id').selectedIndex].text });
             } catch (e) {}
         }
         hideSpinner();
@@ -231,88 +196,75 @@
         updateUI();
     }
 
-    function processValidAsset(asset, tag) {
-        document.body.classList.add('flash-success');
-        setTimeout(() => document.body.classList.remove('flash-success'), 800);
-        if (soundEnabled) { beep.currentTime = 0; beep.play(); }
-        scannedQueue.push({ 
-            id: asset.id, tag: tag, name: asset.model.name, 
-            target_type: document.getElementById('target-type').value, 
-            target_id: document.getElementById('target-id').value, 
-            target_name: document.getElementById('target-id').options[document.getElementById('target-id').selectedIndex].text 
-        });
-        updateUI();
+    function exitRangeMode() {
+        rangeMode = false; rangeStartTag = null; isScanningLocked = false;
+        document.getElementById('range-box').style.display = 'none';
+        document.getElementById('range-status').innerHTML = `Aim camera at the <b>FIRST</b> asset.`;
+        statusDiv.innerText = "Scanner Ready";
     }
 
-    function showSpinner(msg) { 
-        document.getElementById('loading-overlay').style.display = 'flex'; 
-        document.getElementById('loading-msg').innerText = msg;
+    // --- Helper Functions (Same as previous versions) ---
+    async function proxyRequest(e, m="GET", p=null) { const r = await fetch(PROXY_URL, {method:'POST', body:JSON.stringify({endpoint:e, method:m, payload:p})}); return r.json(); }
+    async function loadResources() {
+        try {
+            const [u, l, s] = await Promise.all([proxyRequest('/users?limit=500'), proxyRequest('/locations?limit=500'), proxyRequest('/statuslabels')]);
+            users = u.rows; locations = l.rows; statusLabels = s.rows;
+            toggleTargetList();
+            document.getElementById('status-id').innerHTML = statusLabels.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+            statusDiv.innerText = "Ready";
+        } catch (e) { statusDiv.innerText = "Error"; }
     }
-    function hideSpinner() { document.getElementById('loading-overlay').style.display = 'none'; }
-
+    function toggleTargetList() { const list = document.getElementById('target-type').value === 'user' ? users : locations; document.getElementById('target-id').innerHTML = list.map(i => `<option value="${i.id}">${i.name || i.display_name}</option>`).join(''); }
+    function processValidAsset(asset, tag) { if(soundEnabled) { beep.currentTime=0; beep.play(); } document.body.classList.add('flash-success'); setTimeout(()=>document.body.classList.remove('flash-success'), 800); scannedQueue.push({ id: asset.id, tag, name: asset.model.name, target_type: document.getElementById('target-type').value, target_id: document.getElementById('target-id').value, target_name: document.getElementById('target-id').options[document.getElementById('target-id').selectedIndex].text }); updateUI(); }
     function updateUI() {
         const listEl = document.getElementById('scan-list');
-        const seenIds = new Set();
-        const duplicateIds = new Set();
-        scannedQueue.forEach(item => {
-            if (seenIds.has(item.id)) duplicateIds.add(item.id);
-            seenIds.add(item.id);
-        });
+        const ids = scannedQueue.map(i => i.id);
+        const dups = ids.filter((v,i) => ids.indexOf(v) !== i);
         listEl.innerHTML = scannedQueue.map((item, idx) => {
-            const isDup = duplicateIds.has(item.id);
+            const isDup = dups.includes(item.id);
             return `<div class="scan-item" style="${isDup ? 'border:2px solid var(--danger); background:rgba(231,76,60,0.08);' : ''}">
                 <div class="tag-info">${isDup ? '<b style="color:var(--danger); font-size:10px;">⚠️ DUPLICATE</b><br>' : ''}<strong>${item.tag}</strong><span class="tag-subtext">${item.name} ➔ ${item.target_name}</span></div>
                 <button onclick="removeFromQueue(${idx})" style="border:none; background:none; color:var(--danger); font-size:24px;">&times;</button>
             </div>`;
         }).join('');
-        document.getElementById('clean-btn').style.display = duplicateIds.size > 0 ? 'block' : 'none';
+        document.getElementById('clean-btn').style.display = dups.length > 0 ? 'block' : 'none';
         document.getElementById('batch-controls').style.display = scannedQueue.length > 0 ? 'block' : 'none';
         document.getElementById('count').innerText = scannedQueue.length;
     }
-
     async function processBatch(action) {
-        if (!confirm(`Run ${action} for queue?`)) return;
-        showSpinner("Syncing with Snipe-IT...");
+        if (!confirm(`Run ${action}?`)) return;
+        showSpinner("Syncing...");
         const unique = scannedQueue.filter((v,i,a)=>a.findIndex(t=>(t.id===v.id))===i);
         const sId = document.getElementById('status-id').value;
-
         for (let i = 0; i < unique.length; i++) {
             const item = unique[i];
-            document.getElementById('loading-msg').innerText = `Processing ${i+1}/${unique.length}...`;
-            let endpoint, payload;
-            if (action === 'AUDIT') {
-                endpoint = `/hardware/audit`;
-                payload = { asset_tag: item.tag, location_id: document.getElementById('target-type').value === 'location' ? item.target_id : null, note: "Batch Audit" };
-            } else if (action === 'OUT') {
-                await proxyRequest(`/hardware/${item.id}/checkin`, "POST", { status_id: sId });
-                await proxyRequest(`/hardware/${item.id}`, "PATCH", { status_id: sId });
-                endpoint = `/hardware/${item.id}/checkout`;
-                payload = { checkout_to_type: item.target_type, [`assigned_${item.target_type}`]: item.target_id };
-            } else {
-                endpoint = `/hardware/${item.id}/checkin`;
-                payload = { status_id: sId };
-            }
-            await proxyRequest(endpoint, "POST", payload);
+            document.getElementById('loading-msg').innerText = `Syncing ${i+1}/${unique.length}...`;
+            let e, p;
+            if (action === 'AUDIT') { e = `/hardware/audit`; p = { asset_tag: item.tag, location_id: document.getElementById('target-type').value === 'location' ? item.target_id : null, note: "Batch" }; }
+            else if (action === 'OUT') { await proxyRequest(`/hardware/${item.id}/checkin`, "POST", { status_id: sId }); await proxyRequest(`/hardware/${item.id}`, "PATCH", { status_id: sId }); e = `/hardware/${item.id}/checkout`; p = { checkout_to_type: item.target_type, [`assigned_${item.target_type}`]: item.target_id }; }
+            else { e = `/hardware/${item.id}/checkin`; p = { status_id: sId }; }
+            await proxyRequest(e, "POST", p);
             await new Promise(r => setTimeout(r, 600)); 
         }
         await proxyRequest("email-log", "POST", { action, count: unique.length, details: unique.map(i => `${i.tag} ➔ ${i.target_name}`) });
-        hideSpinner();
-        scannedQueue = []; updateUI();
-        statusDiv.innerText = "Sync Complete!";
+        hideSpinner(); scannedQueue = []; updateUI(); statusDiv.innerText = "Sync Done!";
     }
-
-    function cleanList() { scannedQueue = scannedQueue.filter((v,i,a)=>a.findIndex(t=>(t.id===v.id))===i); updateUI(); }
-    function removeFromQueue(idx) { scannedQueue.splice(idx, 1); updateUI(); }
-    function clearBatch() { if(confirm("Clear queue?")) { scannedQueue = []; updateUI(); } }
-    function applyGlobalToAll() {
-        const type = document.getElementById('target-type').value, id = document.getElementById('target-id').value, name = document.getElementById('target-id').options[document.getElementById('target-id').selectedIndex].text;
-        scannedQueue.forEach(i => { i.target_type = type; i.target_id = id; i.target_name = name; });
-        updateUI();
-    }
-    function triggerFail(tag) { document.body.classList.add('flash-fail'); setTimeout(() => document.body.classList.remove('flash-fail'), 800); statusDiv.innerText = "Not Found: " + tag; }
+    function showSpinner(m) { document.getElementById('loading-overlay').style.display = 'flex'; document.getElementById('loading-msg').innerText = m; }
+    function hideSpinner() { document.getElementById('loading-overlay').style.display = 'none'; }
+    function toggleSound() { soundEnabled = !soundEnabled; document.getElementById("sound-toggle").innerText = soundEnabled ? "🔊" : "🔇"; if(soundEnabled) { beep.volume=0; beep.play().then(()=>{beep.pause(); beep.volume=1;}); } }
     function toggleDarkMode() { document.documentElement.setAttribute("data-theme", document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark"); }
-    document.getElementById('manual-tag').addEventListener('keypress', (e) => { if(e.key === 'Enter') addManualTag(); });
-
+    function cleanList() { scannedQueue = scannedQueue.filter((v,i,a)=>a.findIndex(t=>(t.id===v.id))===i); updateUI(); }
+    function removeFromQueue(i) { scannedQueue.splice(i, 1); updateUI(); }
+    function clearBatch() { if(confirm("Clear?")) { scannedQueue = []; updateUI(); } }
+    function triggerFail(t) { statusDiv.innerText = "Not Found: " + t; }
+    async function addManualTag() {
+        const input = document.getElementById('manual-tag');
+        const tag = input.value.trim().toUpperCase();
+        if(!tag) return;
+        const res = await proxyRequest(`/hardware/bytag/${tag}`);
+        let asset = res.id ? res : (res.rows?.[0] || null);
+        if(asset) { processValidAsset(asset, tag); input.value = ""; } else alert("Not Found");
+    }
     loadResources();
 </script>
 </body>
