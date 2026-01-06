@@ -44,12 +44,12 @@
     <div class="card">
         <label><strong>1. Destination & Status</strong></label>
         <select id="target-type" onchange="toggleTargetList()">
-            <option value="user">Check out to: Person</option>
-            <option value="location">Check out to: Location</option>
+            <option value="user">Assign to: Person</option>
+            <option value="location">Assign to: Location</option>
         </select>
         <select id="target-id"></select>
         <select id="status-id" title="Status Label"></select>
-        <button onclick="applyGlobalToAll()" style="background: var(--warning); border:none; color:white; padding:8px; border-radius:5px; width:100%; font-size:11px; margin-top:5px; cursor:pointer;">🔄 Apply Selection to Queue</button>
+        <button onclick="applyGlobalToAll()" style="background: var(--warning); border:none; color:white; padding:8px; border-radius:5px; width:100%; font-size:11px; margin-top:5px; cursor:pointer;">🔄 Apply to Queue</button>
     </div>
 
     <div class="card">
@@ -85,7 +85,7 @@
 <audio id="beep" src="https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3" preload="auto"></audio>
 
 <script>
-    const PROXY_URL = "https://script.google.com/macros/s/AKfycbwui4ZEpgCNC08tSbNHh_JNz6YojbVl9GD5CpOCdsYkSJNC3pBrT3spyn2TjYCyUuOm9w/exec"; // PASTE URL HERE
+    const PROXY_URL = "https://script.google.com/macros/s/AKfycbwui4ZEpgCNC08tSbNHh_JNz6YojbVl9GD5CpOCdsYkSJNC3pBrT3spyn2TjYCyUuOm9w/exec"; 
 
     let scannedQueue = [], users = [], locations = [], statusLabels = [];
     let lastScannedTag = null, lastScannedTime = 0;
@@ -119,12 +119,9 @@
         const cleanTag = tag.toString().toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
         const now = Date.now();
         
-        // 1. DUPLICATE GUARD
+        // 1. Duplicate Guard Restored
         if (cleanTag === lastScannedTag && (now - lastScannedTime) < 2500) return;
-        if (scannedQueue.some(i => i.tag === cleanTag)) {
-            statusDiv.innerText = "Already in list: " + cleanTag;
-            return;
-        }
+        if (scannedQueue.some(i => i.tag === cleanTag)) return;
 
         lastScannedTag = cleanTag; lastScannedTime = now;
         statusDiv.innerText = "Searching: " + cleanTag;
@@ -156,7 +153,7 @@
 
     function updateUI() {
         const listEl = document.getElementById('scan-list');
-        // 2. RESTORE DELETE (X) BUTTON
+        // 2. Delete (X) Button Restored
         listEl.innerHTML = scannedQueue.map((item, idx) => `
             <div class="scan-item">
                 <div class="tag-info">
@@ -170,7 +167,7 @@
     }
 
     function removeFromQueue(idx) { scannedQueue.splice(idx, 1); updateUI(); }
-    function clearBatch() { if(confirm("Clear current queue?")) { scannedQueue = []; updateUI(); } }
+    function clearBatch() { if(confirm("Clear queue?")) { scannedQueue = []; updateUI(); } }
 
     async function processBatch(action) {
         if (!confirm(`Run ${action} for ${scannedQueue.length} items?`)) return;
@@ -180,16 +177,19 @@
         for (let i = 0; i < scannedQueue.length; i++) {
             const item = scannedQueue[i];
             document.getElementById('progress-bar').style.width = ((i+1)/scannedQueue.length*100) + "%";
-            document.getElementById('progress-text').innerText = `Syncing ${i+1}/${scannedQueue.length}...`;
+            document.getElementById('progress-text').innerText = `Processing ${i+1}...`;
 
-            let endpoint, payload;
+            let endpoint, payload, method = "POST";
             
-            // 3. RESTORE AUDIT FEATURE
+            // 3. Official Audit Action Restored
             if (action === 'AUDIT') {
                 endpoint = `/hardware/audit`;
-                payload = { asset_tag: item.tag, location_id: item.target_id, note: "Scanner Batch Audit" };
+                payload = { 
+                    asset_tag: item.tag, 
+                    location_id: document.getElementById('target-type').value === 'location' ? item.target_id : null, 
+                    note: "Batch Audit via SnipeScan Pro" 
+                };
             } else if (action === 'OUT') {
-                // Force checkin + status update first
                 await proxyRequest(`/hardware/${item.id}/checkin`, "POST", { status_id: sId });
                 await proxyRequest(`/hardware/${item.id}`, "PATCH", { status_id: sId });
                 endpoint = `/hardware/${item.id}/checkout`;
@@ -199,7 +199,7 @@
                 payload = { status_id: sId };
             }
 
-            await proxyRequest(endpoint, "POST", payload);
+            await proxyRequest(endpoint, method, payload);
             await new Promise(r => setTimeout(r, 600)); 
         }
 
@@ -207,7 +207,7 @@
         saveBatchToAuditLog(auditData);
         await proxyRequest("email-log", "POST", auditData);
 
-        statusDiv.innerText = "Sync Complete. Email Sent.";
+        statusDiv.innerText = "Success. Logs Emailed.";
         scannedQueue = []; updateUI();
         document.getElementById('progress-container').style.display = 'none';
     }
