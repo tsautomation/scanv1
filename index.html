@@ -45,18 +45,14 @@
     <div id="status" style="text-align:center; padding:10px; font-size:14px; font-weight:bold;">Initializing...</div>
 
     <div class="card">
-        <label><strong>1. Set Global Default Target</strong></label>
+        <label><strong>1. Target & Status</strong></label>
         <select id="target-type" onchange="toggleTargetList()">
             <option value="user">Check out to: Person</option>
             <option value="location">Check out to: Location</option>
         </select>
         <select id="target-id"></select>
-        <button onclick="applyGlobalToAll()" style="background: var(--warning); border:none; color:white; padding:8px; border-radius:5px; width:100%; font-size:11px; margin-top:5px; cursor:pointer;">🔄 Force Global Target onto List</button>
-        
-        <div id="checkin-options" style="margin-top:10px;">
-            <label><strong>Check-in Status:</strong></label>
-            <select id="status-id"></select>
-        </div>
+        <select id="status-id" title="Status to apply on sync"></select>
+        <button onclick="applyGlobalToAll()" style="background: var(--warning); border:none; color:white; padding:8px; border-radius:5px; width:100%; font-size:11px; margin-top:5px; cursor:pointer;">🔄 Apply Target to All Below</button>
     </div>
 
     <div class="card">
@@ -144,24 +140,16 @@
     }
 
     async function onScanSuccess(tag) {
-        // 1. Sanitize for Code 128
         const cleanTag = tag.toString().toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
         if (cleanTag.length < 5) return;
-
-        // 2. Temporal Duplicate Guard (2-second cooldown for the SAME tag)
         const now = Date.now();
         if (cleanTag === lastScannedTag && (now - lastScannedTime) < 2000) return;
-
-        // 3. Queue Guard (Strict check if already in the batch)
         if (scannedQueue.some(i => i.tag === cleanTag)) {
             statusDiv.innerText = "Already in batch: " + cleanTag;
             return;
         }
-
-        // Update tracking for the guard
         lastScannedTag = cleanTag;
         lastScannedTime = now;
-
         statusDiv.innerText = "Looking up: " + cleanTag;
 
         try {
@@ -172,7 +160,6 @@
                 document.body.classList.add('flash-success');
                 setTimeout(() => document.body.classList.remove('flash-success'), 800);
                 beep.play();
-
                 const gType = document.getElementById('target-type').value;
                 const gId = document.getElementById('target-id').value;
                 const gName = document.getElementById('target-id').options[document.getElementById('target-id').selectedIndex].text;
@@ -184,9 +171,7 @@
                 updateUI();
                 addToHistory(`Added ${cleanTag}`, 'success');
                 statusDiv.innerText = "Found: " + cleanTag;
-            } else {
-                triggerFail(cleanTag);
-            }
+            } else { triggerFail(cleanTag); }
         } catch (e) { triggerFail(cleanTag); }
     }
 
@@ -235,47 +220,43 @@
     }
 
     async function processBatch(action) {
-    if (!confirm(`Process ${scannedQueue.length} items?`)) return;
-    document.getElementById('progress-container').style.display = 'block';
-    const sId = document.getElementById('status-id').value;
+        if (!confirm(`Process ${scannedQueue.length} items?`)) return;
+        document.getElementById('progress-container').style.display = 'block';
+        const sId = document.getElementById('status-id').value;
 
-    for (let i = 0; i < scannedQueue.length; i++) {
-        const item = scannedQueue[i];
-        const listItem = document.getElementById(`item-${i}`);
-        document.getElementById('progress-bar').style.width = ((i+1)/scannedQueue.length*100) + "%";
-        document.getElementById('progress-text').innerText = `Syncing ${i+1}/${scannedQueue.length}...`;
+        for (let i = 0; i < scannedQueue.length; i++) {
+            const item = scannedQueue[i];
+            const listItem = document.getElementById(`item-${i}`);
+            document.getElementById('progress-bar').style.width = ((i+1)/scannedQueue.length*100) + "%";
+            document.getElementById('progress-text').innerText = `Syncing ${i+1}/${scannedQueue.length}...`;
 
-        try {
-            // NEW LOGIC: If checking OUT, first update the Status Label
-            if (action === 'OUT') {
-                await proxyRequest(`/hardware/${item.id}`, "PATCH", { status_id: sId });
-            }
+            try {
+                // If OUT: Clear previous checkout + Update Status Label first
+                if (action === 'OUT') {
+                    await proxyRequest(`/hardware/${item.id}/checkin`, "POST", { status_id: sId });
+                    await proxyRequest(`/hardware/${item.id}`, "PATCH", { status_id: sId });
+                }
 
-            let endpoint = `/hardware/${item.id}/${action === 'IN' ? 'checkin' : 'checkout'}`;
-            let payload = action === 'IN' ? 
-                { status_id: sId } : 
-                { checkout_to_type: item.target_type, [`assigned_${item.target_type}`]: item.target_id };
-            
-            if (action === 'AUDIT') {
-                endpoint = `/hardware/audit`;
-                payload = { asset_tag: item.tag, location_id: item.target_id, note: "Batch Audit" };
-            }
+                let endpoint = `/hardware/${item.id}/${action === 'IN' ? 'checkin' : 'checkout'}`;
+                let payload = action === 'IN' ? 
+                    { status_id: sId } : 
+                    { checkout_to_type: item.target_type, [`assigned_${item.target_type}`]: item.target_id };
+                
+                if (action === 'AUDIT') {
+                    endpoint = `/hardware/audit`;
+                    payload = { asset_tag: item.tag, location_id: item.target_id, note: "Batch Audit" };
+                }
 
-            const res = await proxyRequest(endpoint, "POST", payload);
-            
-            if (listItem) {
-                listItem.style.background = res.status === "success" ? "rgba(46, 204, 113, 0.2)" : "rgba(231, 76, 60, 0.2)";
-                listItem.querySelector('.icon').innerText = res.status === "success" ? "✅" : "❌";
-            }
-            
-            // Allow time for Snipe-IT to process the sequential requests
-            await new Promise(r => setTimeout(r, 800)); 
-        } catch (e) {
-            console.error("Batch error:", e);
+                const res = await proxyRequest(endpoint, "POST", payload);
+                if (listItem) {
+                    listItem.style.background = res.status === "success" ? "rgba(46, 204, 113, 0.2)" : "rgba(231, 76, 60, 0.2)";
+                    listItem.querySelector('.icon').innerText = res.status === "success" ? "✅" : "❌";
+                }
+                await new Promise(r => setTimeout(r, 600)); 
+            } catch (e) { }
         }
+        statusDiv.innerText = "Batch Complete.";
     }
-    statusDiv.innerText = "Batch Complete.";
-}
 
     let searchTimeout;
     function debounceSearch() {
