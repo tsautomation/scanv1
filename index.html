@@ -39,13 +39,12 @@
         .info-val { font-size:14px; color: var(--text); }
 
         #loading-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:5000; color:white; flex-direction:column; justify-content:center; align-items:center; }
-        .nav-bar { position: fixed; bottom: 0; width: 100%; background: var(--card-bg); border-top: 1px solid var(--border); display: flex; justify-content: space-around; padding: 10px 0; z-index: 1500; }
+        @keyframes spin { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
     </style>
 </head>
 <body>
 
 <div id="loading-overlay"><div style="border:4px solid #fff; border-left-color:var(--secondary); width:30px; height:30px; border-radius:50%; animation:spin 1s linear infinite;"></div><div id="loading-msg" style="margin-top:15px;">Processing...</div></div>
-<style>@keyframes spin { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }</style>
 
 <div id="info-modal"><div class="info-card"><div id="info-fields"></div><button onclick="closeInfoModal()" class="btn" style="background:var(--secondary); width:100%;">Close</button></div></div>
 
@@ -59,31 +58,40 @@
     <div id="status" style="text-align:center; padding:8px; font-size:12px; font-weight:bold; color: var(--secondary);">Connecting...</div>
 
     <div style="display: flex; gap: 5px; margin-top: 5px;">
-        <button id="info-btn" onclick="startInfoScan()" style="flex:1; padding:10px; font-size:11px; border-radius:8px; border:2px solid var(--warning); background:var(--card-bg); color:var(--text); font-weight:bold;">🔍 Info</button>
+        <button id="info-btn" onclick="startInfoScan()" style="flex:1; padding:10px; font-size:11px; border-radius:8px; border:2px solid var(--warning); background:var(--card-bg); font-weight:bold;">🔍 Info</button>
         <button onclick="toggleSection('manual-single')" style="flex:1; padding:10px; font-size:11px; border-radius:8px; border:1px solid var(--border); background:var(--card-bg);">⌨️ Manual</button>
         <button onclick="toggleSection('range-box')" style="flex:1; padding:10px; font-size:11px; border-radius:8px; border:1px solid var(--border); background:var(--card-bg);">🔢 Range</button>
     </div>
 
     <div id="manual-single" class="card" style="display:none; border-style:dashed;">
-        <input type="text" id="manual-tag" placeholder="Asset Tag..." style="text-transform:uppercase;">
-        <button onclick="addManualTag()" class="btn" style="background:var(--secondary); margin-top:5px;">Add to Queue</button>
+        <input type="text" id="manual-tag" placeholder="Type Asset Tag..." style="text-transform:uppercase;">
+        <button onclick="addManualTag()" class="btn" style="background:var(--secondary); margin-top:5px; width:100%;">Add to Queue</button>
     </div>
 
     <div id="range-box" class="card" style="display:none; border-style:dashed;">
-        <p id="range-status" style="font-size:12px; text-align:center; margin-bottom:10px;">Scan or type the start/end tags.</p>
-        <input type="text" id="range-start-input" placeholder="Start Tag (e.g. CWA100)" style="text-transform:uppercase;">
-        <input type="text" id="range-end-input" placeholder="End Tag (e.g. CWA110)" style="text-transform:uppercase;">
+        <div id="range-status" style="font-size:12px; text-align:center; background:rgba(52, 152, 219, 0.1); padding:8px; border-radius:5px; margin-bottom:10px;">
+            Camera: Scan <b>START</b> tag
+        </div>
+        <div style="display: flex; gap: 5px;">
+            <input type="text" id="range-start-input" placeholder="Start Tag" style="text-transform:uppercase; font-size:13px;">
+            <input type="text" id="range-end-input" placeholder="End Tag" style="text-transform:uppercase; font-size:13px;">
+        </div>
         <button onclick="manualRangeSubmit()" class="btn" style="background:var(--primary); width:100%;">Process Range</button>
-        <button onclick="exitRangeMode()" class="btn" style="background:var(--danger); width:100%; padding:8px;">Cancel</button>
+        <button onclick="exitRangeMode()" class="btn" style="background:var(--danger); width:100%; padding:8px; font-size:11px;">Cancel</button>
     </div>
 
     <div class="card">
-        <label style="font-size:10px; font-weight:bold;">ASSIGNMENT SETTINGS</label>
+        <label style="font-size:10px; font-weight:bold;">1. SELECT TYPE</label>
         <select id="target-type" onchange="toggleTargetList()">
             <option value="user">Assign to: Person</option>
             <option value="location">Assign to: Location</option>
         </select>
+        
+        <label style="font-size:10px; font-weight:bold; margin-top:10px; display:block;">2. SEARCH & SELECT TARGET</label>
+        <input type="text" id="assign-search" placeholder="Type to filter list..." onkeyup="filterAssignList()">
         <select id="target-id" onchange="updateUI()"></select>
+        
+        <label style="font-size:10px; font-weight:bold; margin-top:10px; display:block;">3. STATUS</label>
         <select id="status-id"></select>
     </div>
 
@@ -116,7 +124,6 @@
 
         if (infoMode) {
             isScanningLocked = true;
-            statusDiv.innerText = "Searching...";
             const res = await proxyRequest(`/hardware/bytag/${cleanTag}`);
             displayInfo(res.id ? res : res.rows?.[0], cleanTag);
             return;
@@ -125,8 +132,13 @@
         if (rangeMode) {
             const startIn = document.getElementById('range-start-input');
             const endIn = document.getElementById('range-end-input');
-            if (!startIn.value) { startIn.value = cleanTag; }
-            else if (!endIn.value) { endIn.value = cleanTag; manualRangeSubmit(); }
+            if (!startIn.value) { 
+                startIn.value = cleanTag; 
+                document.getElementById('range-status').innerHTML = "Camera: Scan <b>END</b> tag";
+            } else if (!endIn.value) { 
+                endIn.value = cleanTag; 
+                manualRangeSubmit(); 
+            }
             return;
         }
 
@@ -146,6 +158,16 @@
         } finally { setTimeout(() => { isScanningLocked = false; }, 1000); }
     }
 
+    function filterAssignList() {
+        const query = document.getElementById('assign-search').value.toLowerCase();
+        const select = document.getElementById('target-id');
+        const list = document.getElementById('target-type').value === 'user' ? users : locations;
+        
+        const filtered = list.filter(item => (item.name || item.display_name).toLowerCase().includes(query));
+        select.innerHTML = filtered.map(i => `<option value="${i.id}">${i.name || i.display_name}</option>`).join('');
+        updateUI();
+    }
+
     async function manualRangeSubmit() {
         const start = document.getElementById('range-start-input').value.toUpperCase();
         const end = document.getElementById('range-end-input').value.toUpperCase();
@@ -153,47 +175,48 @@
 
         showLoading("Generating Range...");
         const prefix = start.match(/^[A-Z]*/)[0];
-        const numStart = parseInt(start.match(/\d+/)[0]);
-        const numEnd = parseInt(end.match(/\d+/)[0]);
+        const startMatch = start.match(/\d+/);
+        const endMatch = end.match(/\d+/);
+        if(!startMatch || !endMatch) return alert("Tags must contain numbers");
+
+        const numStart = parseInt(startMatch[0]);
+        const numEnd = parseInt(endMatch[0]);
         const low = Math.min(numStart, numEnd), high = Math.max(numStart, numEnd);
+        const pad = startMatch[0].length;
 
         for (let i = low; i <= high; i++) {
-            const currentTag = prefix + i.toString().padStart(start.match(/\d+/)[0].length, '0');
-            // Check if already in queue to prevent duplicates
+            const currentTag = prefix + i.toString().padStart(pad, '0');
             if (!scannedQueue.some(q => q.tag === currentTag)) {
                 const res = await proxyRequest(`/hardware/bytag/${currentTag}`);
                 const asset = res.id ? res : (res.rows?.[0] || null);
                 if (asset) scannedQueue.push({ id: asset.id, tag: currentTag, name: asset.model.name });
             }
         }
-        updateUI();
-        hideLoading();
-        exitRangeMode();
+        updateUI(); hideLoading(); exitRangeMode();
     }
 
     function updateUI() {
-        const targetName = document.getElementById('target-id').options[document.getElementById('target-id').selectedIndex]?.text || "...";
+        const sel = document.getElementById('target-id');
+        const targetName = sel.options[sel.selectedIndex]?.text || "...";
         document.getElementById('scan-list').innerHTML = scannedQueue.map((item, idx) => `
             <div class="scan-item">
                 <div class="tag-info">
-                    <span class="tag-main">${item.tag} <small style="font-weight:normal; opacity:0.7;">(${item.name})</small></span>
+                    <span class="tag-main">${item.tag} <small style="font-weight:normal; opacity:0.6;">(${item.name})</small></span>
                     <span class="tag-subtext">➔ ${targetName}</span>
                 </div>
                 <button onclick="removeFromQueue(${idx})" style="border:none; background:none; color:var(--danger); font-size:24px;">&times;</button>
             </div>`).join('');
-        
         document.getElementById('batch-controls').style.display = scannedQueue.length > 0 ? 'flex' : 'none';
         document.getElementById('count').innerText = scannedQueue.length;
     }
 
     function displayInfo(asset, tag) {
         if (!asset) { alert("Not found"); closeInfoModal(); return; }
-        const fmt = (d) => d ? new Date(d).toLocaleDateString() : 'N/A';
         const rows = [
             {l: "Tag", v: asset.asset_tag}, {l: "Status", v: asset.status_label?.name},
             {l: "Location", v: asset.location?.name || asset.default_location?.name},
-            {l: "Model", v: asset.model?.name}, {l: "Audit", v: fmt(asset.last_audit_date)},
-            {l: "Last Out", v: fmt(asset.last_checkout)}, {l: "Last In", v: fmt(asset.checkin_date)}
+            {l: "Model", v: asset.model?.name}, {l: "Last Audit", v: asset.last_audit_date?.formatted || 'N/A'},
+            {l: "Last Out", v: asset.last_checkout?.formatted || 'N/A'}, {l: "Last In", v: asset.checkin_date?.formatted || 'N/A'}
         ];
         document.getElementById('info-fields').innerHTML = rows.map(r => `<div class="info-row"><span class="info-label">${r.l}</span><span class="info-val">${r.v || 'None'}</span></div>`).join('');
         document.getElementById('info-modal').style.display = 'flex';
@@ -201,7 +224,7 @@
 
     async function processBatch(type) {
         if (!scannedQueue.length) return;
-        showLoading("Syncing with Snipe-IT...");
+        showLoading("Updating Snipe-IT...");
         const tId = document.getElementById('target-id').value;
         const tType = document.getElementById('target-type').value;
         const sId = document.getElementById('status-id').value;
@@ -212,10 +235,7 @@
             else if (type === 'IN') { ep = `/hardware/${asset.id}/checkin`; p = { status_id: sId }; }
             await proxyRequest(ep, m, p);
         }
-        
-        await proxyRequest("email-log", "POST", { action: type, count: scannedQueue.length, details: scannedQueue.map(a => `${a.tag} (${a.name})`) });
-        alert("Batch Successful");
-        scannedQueue = []; updateUI(); hideLoading();
+        alert("Batch Complete"); scannedQueue = []; updateUI(); hideLoading();
     }
 
     async function proxyRequest(e, m="GET", p=null) { 
@@ -228,6 +248,16 @@
         document.getElementById('range-box').style.display = 'none';
         document.getElementById(id).style.display = 'block';
         rangeMode = (id === 'range-box');
+        if(rangeMode) {
+            document.getElementById('range-start-input').value = '';
+            document.getElementById('range-end-input').value = '';
+            document.getElementById('range-status').innerHTML = "Camera: Scan <b>START</b> tag";
+        }
+    }
+
+    function toggleTargetList() { 
+        document.getElementById('assign-search').value = '';
+        filterAssignList();
     }
 
     function startInfoScan() { infoMode = true; document.getElementById('info-btn').style.background = "var(--warning)"; }
@@ -248,12 +278,6 @@
             document.getElementById('status-id').innerHTML = statusLabels.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
             document.getElementById('status').innerText = "Ready";
         } catch (e) { document.getElementById('status').innerText = "Connection Error"; }
-    }
-
-    function toggleTargetList() { 
-        const list = document.getElementById('target-type').value === 'user' ? users : locations; 
-        document.getElementById('target-id').innerHTML = list.map(i => `<option value="${i.id}">${i.name || i.display_name}</option>`).join(''); 
-        updateUI();
     }
 
     loadResources();
