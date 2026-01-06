@@ -25,21 +25,25 @@
 
         .btn { padding: 15px; border: none; border-radius: 8px; color: white; font-weight: bold; width: 100%; margin-top: 10px; font-size: 16px; cursor: pointer; }
         
-        /* Info Scan Modal */
-        #info-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:4000; justify-content:center; align-items:center; }
-        .info-card { background:var(--card-bg); width:90%; max-width:400px; border-radius:15px; padding:20px; position:relative; max-height: 80vh; overflow-y: auto; }
-        .info-row { margin-bottom:12px; border-bottom:1px solid var(--border); padding-bottom:5px; }
-        .info-label { font-size:11px; text-transform:uppercase; color:var(--secondary); font-weight:bold; display:block; }
-        .info-val { font-size:15px; font-weight:500; }
+        /* Scaling Logic for Queue List */
+        .scan-item { padding: 12px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+        .tag-info { flex: 1; min-width: 0; }
+        .tag-main { font-weight: bold; font-size: 16px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .tag-subtext { font-size: clamp(10px, 2.5vw, 13px); color: #7f8c8d; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-        /* General styles */
+        /* Info Modal Overlay */
+        #info-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:4000; justify-content:center; align-items:center; }
+        .info-card { background:var(--card-bg); width:90%; max-width:400px; border-radius:15px; padding:20px; position:relative; max-height: 85vh; overflow-y: auto; border: 1px solid var(--secondary); }
+        .info-row { margin-bottom:12px; border-bottom:1px solid var(--border); padding-bottom:5px; }
+        .info-label { font-size:10px; text-transform:uppercase; color:var(--secondary); font-weight:bold; display:block; letter-spacing: 0.5px; }
+        .info-val { font-size:14px; font-weight:500; color: var(--text); }
+
         #loading-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:5000; color:white; flex-direction:column; justify-content:center; align-items:center; }
         .spinner { border: 4px solid rgba(0,0,0,0.1); width: 36px; height: 36px; border-radius: 50%; border-left-color: var(--secondary); animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         
-        #history-panel { display:none; position:fixed; bottom:0; left:0; width:100%; height:80%; background:var(--card-bg); z-index:2000; border-radius: 20px 20px 0 0; box-shadow: 0 -5px 20px rgba(0,0,0,0.2); padding: 20px; box-sizing: border-box; overflow-y: auto; border-top: 3px solid var(--secondary); }
         .nav-bar { position: fixed; bottom: 0; width: 100%; background: var(--card-bg); border-top: 1px solid var(--border); display: flex; justify-content: space-around; padding: 10px 0; z-index: 1500; }
-        .nav-item { background: none; border: none; color: var(--text); font-size: 12px; display: flex; flex-direction: column; align-items: center; }
+        .nav-item { background: none; border: none; color: var(--text); font-size: 12px; display: flex; flex-direction: column; align-items: center; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -51,9 +55,9 @@
 
 <div id="info-modal">
     <div class="info-card">
-        <h3 style="margin-top:0; border-bottom:2px solid var(--secondary); padding-bottom:10px;">Asset Information</h3>
+        <h3 style="margin-top:0; border-bottom:2px solid var(--secondary); padding-bottom:10px; color: var(--secondary);">🔍 Asset Insight</h3>
         <div id="info-fields"></div>
-        <button onclick="closeInfoModal()" class="btn" style="background:var(--danger)">Close Detail</button>
+        <button onclick="closeInfoModal()" class="btn" style="background:var(--secondary)">Dismiss</button>
     </div>
 </div>
 
@@ -84,7 +88,7 @@
 
     <div id="range-box" class="card" style="display:none; border-style:dashed; padding:15px;">
         <p id="range-status" style="font-size:13px; text-align:center;">Scan <b>FIRST</b> asset tag...</p>
-        <button onclick="exitRangeMode()" class="btn" style="background:var(--danger); padding:8px; margin-top:0;">Cancel Range Mode</button>
+        <button onclick="exitRangeMode()" class="btn" style="background:var(--danger); padding:8px; margin-top:0;">Cancel Range</button>
     </div>
 
     <div class="card">
@@ -95,7 +99,7 @@
         </select>
         <select id="target-id"></select>
         <select id="status-id"></select>
-        <button id="apply-all-btn" onclick="applyGlobalToAll()" style="background:#95a5a6; border:none; color:white; padding:10px; border-radius:8px; width:100%; font-size:11px; margin-top:5px;">🔄 Apply selection to all in queue</button>
+        <button id="apply-all-btn" onclick="applyGlobalToAll()" style="background:#95a5a6; border:none; color:white; padding:10px; border-radius:8px; width:100%; font-size:11px; margin-top:5px;">🔄 Update Queue Items</button>
     </div>
 
     <div class="card">
@@ -111,14 +115,6 @@
             <button class="btn" style="background:var(--warning); color:#222" onclick="processBatch('AUDIT')">Official Audit</button>
         </div>
     </div>
-</div>
-
-<div id="history-panel">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-        <h3 style="margin:0;">Audit History</h3>
-        <button onclick="toggleHistory(false)" style="background:var(--danger); color:white; border:none; padding:5px 10px; border-radius:5px;">Close</button>
-    </div>
-    <div id="history-content"></div>
 </div>
 
 <div class="nav-bar">
@@ -140,7 +136,7 @@
     function startInfoScan() {
         infoMode = true;
         document.getElementById('info-btn').style.background = "var(--warning)";
-        document.getElementById('info-btn').innerText = "🔴 Scanning Info...";
+        document.getElementById('info-btn').innerText = "🔴 Scanning...";
         statusDiv.innerText = "Info Mode: Scan any tag";
     }
 
@@ -183,7 +179,6 @@
             return;
         }
 
-        // Standard Scanning Logic
         if (scannedQueue.some(i => i.tag === cleanTag)) return;
         isScanningLocked = true;
         try {
@@ -202,19 +197,21 @@
         }
 
         const fields = [
-            { label: "Asset ID / Tag", val: asset.asset_tag },
+            { label: "Asset ID", val: asset.asset_tag },
             { label: "Name", val: asset.name },
             { label: "Model", val: asset.model?.name },
+            { label: "Status", val: asset.status_label?.name || asset.status_label },
+            { label: "Location", val: asset.location?.name || asset.default_location?.name },
             { label: "Notes", val: asset.notes },
             { label: "Warranty", val: asset.warranty_months ? asset.warranty_months + " Months" : null },
-            { label: "Order Number", val: asset.order_number },
-            { label: "Purchase Date", val: asset.purchase_date?.date || asset.purchase_date },
+            { label: "Order #", val: asset.order_number },
+            { label: "Purchase Date", val: asset.purchase_date?.formatted || asset.purchase_date },
             { label: "Supplier", val: asset.supplier?.name }
         ];
 
         let html = "";
         fields.forEach(f => {
-            if (f.val && f.val !== "null") {
+            if (f.val && f.val !== "null" && f.val !== "") {
                 html += `<div class="info-row">
                             <span class="info-label">${f.label}</span>
                             <span class="info-val">${f.val}</span>
@@ -222,11 +219,10 @@
             }
         });
 
-        document.getElementById('info-fields').innerHTML = html || "<p>No extra data available.</p>";
+        document.getElementById('info-fields').innerHTML = html || "<p>No data available.</p>";
         document.getElementById('info-modal').style.display = 'flex';
     }
 
-    // Helper functions (remain same as your working version)
     async function proxyRequest(e, m="GET", p=null) { 
         const r = await fetch(PROXY_URL, {method:'POST', body:JSON.stringify({endpoint:e, method:m, payload:p})}); 
         return r.json(); 
@@ -247,9 +243,12 @@
 
     function updateUI() {
         document.getElementById('scan-list').innerHTML = scannedQueue.map((item, idx) => `
-            <div class="scan-item" style="padding:10px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between;">
-                <div><b>${item.tag}</b><br><small>${item.name}</small></div>
-                <button onclick="removeFromQueue(${idx})" style="border:none; background:none; color:var(--danger); font-size:20px;">&times;</button>
+            <div class="scan-item">
+                <div class="tag-info">
+                    <span class="tag-main">${item.tag}</span>
+                    <span class="tag-subtext">${item.name} ➔ ${item.target_name}</span>
+                </div>
+                <button onclick="removeFromQueue(${idx})" style="border:none; background:none; color:var(--danger); font-size:24px;">&times;</button>
             </div>`).join('');
         document.getElementById('batch-controls').style.display = scannedQueue.length > 0 ? 'block' : 'none';
         document.getElementById('count').innerText = scannedQueue.length;
@@ -259,7 +258,7 @@
     function removeFromQueue(i) { scannedQueue.splice(i, 1); updateUI(); }
     function toggleSound() { soundEnabled = !soundEnabled; document.getElementById("sound-toggle").innerText = soundEnabled ? "🔊" : "🔇"; }
     function toggleDarkMode() { document.documentElement.setAttribute("data-theme", document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark"); }
-    function toggleHistory(show) { document.getElementById('history-panel').style.display = show ? 'block' : 'none'; }
+    function toggleHistory(show) { /* Placeholder for history toggle */ }
 
     async function loadResources() {
         try {
