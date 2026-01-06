@@ -9,7 +9,7 @@
     <style>
         :root { --bg: #f8f9fa; --card-bg: #ffffff; --text: #2c3e50; --border: #dddddd; --primary: #2ecc71; --secondary: #3498db; --danger: #e74c3c; --warning: #f39c12; }
         [data-theme="dark"] { --bg: #121212; --card-bg: #1e1e1e; --text: #e0e0e0; --border: #333333; }
-        body { background: var(--bg); color: var(--text); font-family: -apple-system, system-ui, sans-serif; margin: 0; transition: background 0.3s; touch-action: manipulation; }
+        body { background: var(--bg); color: var(--text); font-family: -apple-system, system-ui, sans-serif; margin: 0; transition: background 0.3s; }
         .container { padding: 15px; max-width: 500px; margin: auto; }
         #reader { width: 100%; border-radius: 12px; overflow: hidden; background: #000; border: 2px solid var(--border); }
         .card { background: var(--card-bg); padding: 15px; border-radius: 12px; margin-top: 15px; border: 1px solid var(--border); box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
@@ -17,20 +17,17 @@
         .btn { padding: 15px; border: none; border-radius: 8px; color: white; font-weight: bold; width: 100%; margin-top: 10px; font-size: 16px; cursor: pointer; }
         .btn-in { background: var(--primary); }
         .btn-out { background: var(--danger); }
-        .btn-audit { background: var(--secondary); }
         
+        /* Flash & UI */
         .flash-success { animation: flash-green 0.8s; }
         .flash-fail { animation: flash-red 0.8s; }
         @keyframes flash-green { 0% { background-color: #2ecc71; } 100% { background-color: var(--bg); } }
         @keyframes flash-red { 0% { background-color: #e74c3c; } 100% { background-color: var(--bg); } }
-
         .scan-item { padding: 12px; border-bottom: 1px solid var(--border); }
-        .status-tag { font-size: 11px; color: var(--secondary); display: block; margin-top: 4px; }
-        .history-item { font-size: 12px; padding: 5px; border-bottom: 1px dotted var(--border); }
-        .history-item.ok { color: var(--primary); }
-        .history-item.err { color: var(--danger); }
         #progress-bar { height: 10px; background: var(--secondary); width: 0%; border-radius: 5px; transition: width 0.3s; }
-        .search-result { padding: 10px; border-bottom: 1px solid var(--border); cursor: pointer; }
+        
+        /* Modal Style */
+        #audit-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:1000; overflow-y:auto; padding:20px; color:white; box-sizing: border-box; }
     </style>
 </head>
 <body>
@@ -38,21 +35,21 @@
 <div class="container">
     <div style="display: flex; justify-content: space-between; align-items: center;">
         <h2 style="margin: 0;">📦 SnipeScan Pro</h2>
-        <button onclick="toggleDarkMode()" id="theme-toggle" style="background:none; border:none; font-size: 24px; cursor:pointer;">🌙</button>
+        <button onclick="toggleDarkMode()" style="background:none; border:none; font-size: 24px;">🌙</button>
     </div>
     
     <div id="reader" style="margin-top:15px;"></div>
     <div id="status" style="text-align:center; padding:10px; font-size:14px; font-weight:bold;">Initializing...</div>
 
     <div class="card">
-        <label><strong>1. Target & Status</strong></label>
+        <label><strong>1. Destination & Status</strong></label>
         <select id="target-type" onchange="toggleTargetList()">
             <option value="user">Check out to: Person</option>
             <option value="location">Check out to: Location</option>
         </select>
         <select id="target-id"></select>
-        <select id="status-id" title="Status to apply on sync"></select>
-        <button onclick="applyGlobalToAll()" style="background: var(--warning); border:none; color:white; padding:8px; border-radius:5px; width:100%; font-size:11px; margin-top:5px; cursor:pointer;">🔄 Apply Target to All Below</button>
+        <select id="status-id" title="Status Label"></select>
+        <button onclick="applyGlobalToAll()" style="background: var(--warning); border:none; color:white; padding:8px; border-radius:5px; width:100%; font-size:11px; margin-top:5px;">🔄 Apply Selection to Queue</button>
     </div>
 
     <div class="card">
@@ -61,10 +58,8 @@
         
         <div style="display:flex; justify-content:space-between; align-items:center; margin-top:15px;">
             <strong>Queue (<span id="count">0</span>/100)</strong>
-            <button onclick="exportToCSV()" style="font-size:11px; background:#95a5a6; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;">💾 CSV Backup</button>
         </div>
-        
-        <div id="scan-list" style="margin-top:10px; max-height:280px; overflow-y:auto; border:1px solid var(--border); border-radius:8px;"></div>
+        <div id="scan-list" style="margin-top:10px; max-height:200px; overflow-y:auto; border:1px solid var(--border); border-radius:8px;"></div>
 
         <div id="progress-container" style="display:none; margin-top:15px;">
             <div style="background:var(--border); border-radius:5px;"><div id="progress-bar"></div></div>
@@ -72,57 +67,48 @@
         </div>
 
         <div id="batch-controls" style="display:none;">
-            <button class="btn btn-out" onclick="processBatch('OUT')">Check Out Batch</button>
-            <button class="btn btn-in" onclick="processBatch('IN')">Check In Batch</button>
-            <button class="btn btn-audit" onclick="processBatch('AUDIT')">Audit Batch</button>
-            <button onclick="clearBatch()" style="background:none; border:none; color:var(--danger); width:100%; margin-top:10px; font-size:12px; cursor:pointer;">Clear All Scans</button>
+            <button class="btn btn-out" onclick="processBatch('OUT')">Process Check-Out Batch</button>
+            <button class="btn btn-in" onclick="processBatch('IN')">Process Check-In Batch</button>
+            <button onclick="clearBatch()" style="background:none; border:none; color:var(--danger); width:100%; margin-top:10px; font-size:12px;">Clear Queue</button>
         </div>
     </div>
 
     <div class="card" style="background: rgba(0,0,0,0.02); border-style: dashed;">
-        <small><strong>Recent Activity</strong></small>
-        <div id="scan-history" style="margin-top:5px;"></div>
+        <button onclick="showAuditLogs()" style="background:var(--secondary); color:white; border:none; padding:10px; border-radius:8px; width:100%;">📊 View History & Audit Logs</button>
     </div>
+</div>
+
+<div id="audit-modal">
+    <h3>Batch History</h3>
+    <button onclick="document.getElementById('audit-modal').style.display='none'" style="background:var(--danger); color:white; border:none; padding:10px; width:100%; border-radius:8px;">Close</button>
+    <div id="audit-log-content" style="margin-top:20px;"></div>
 </div>
 
 <audio id="beep" src="https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3" preload="auto"></audio>
 
 <script>
-    const PROXY_URL = "https://script.google.com/macros/s/AKfycbwC1w3ymZQ6t4u4_V3o38gOWg3_LDSKxHwnpk4C9VxUpKUC2kPQVJwGV3Z9UfxmQC7mKg/exec";
+    const PROXY_URL = "https://script.google.com/macros/s/AKfycbwui4ZEpgCNC08tSbNHh_JNz6YojbVl9GD5CpOCdsYkSJNC3pBrT3spyn2TjYCyUuOm9w/exec"; // PASTE URL HERE
 
     let scannedQueue = [], users = [], locations = [], statusLabels = [];
-    let lastScannedTag = null;
-    let lastScannedTime = 0;
-
+    let lastScannedTag = null, lastScannedTime = 0;
     const beep = document.getElementById("beep"), statusDiv = document.getElementById("status");
 
     const scanner = new Html5Qrcode("reader");
-    scanner.start(
-        { facingMode: "environment" }, 
-        { fps: 20, qrbox: { width: 280, height: 150 }, formatsToSupport: [ Html5QrcodeSupportedFormats.CODE_128 ] }, 
-        onScanSuccess
-    );
+    scanner.start({ facingMode: "environment" }, { fps: 20, qrbox: { width: 280, height: 150 }, formatsToSupport: [ Html5QrcodeSupportedFormats.CODE_128 ] }, onScanSuccess);
 
     async function proxyRequest(endpoint, method = "GET", payload = null) {
-        const res = await fetch(PROXY_URL, {
-            method: 'POST',
-            body: JSON.stringify({ endpoint, method, payload })
-        });
+        const res = await fetch(PROXY_URL, { method: 'POST', body: JSON.stringify({ endpoint, method, payload }) });
         return res.json();
     }
 
     async function loadResources() {
         try {
-            const [u, l, s] = await Promise.all([
-                proxyRequest('/users?limit=500'),
-                proxyRequest('/locations?limit=500'),
-                proxyRequest('/statuslabels')
-            ]);
+            const [u, l, s] = await Promise.all([proxyRequest('/users?limit=500'), proxyRequest('/locations?limit=500'), proxyRequest('/statuslabels')]);
             users = u.rows; locations = l.rows; statusLabels = s.rows;
             toggleTargetList();
             document.getElementById('status-id').innerHTML = statusLabels.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
             statusDiv.innerText = "Scanner Ready";
-        } catch (e) { statusDiv.innerText = "Connection Error"; }
+        } catch (e) { statusDiv.innerText = "Error Loading Snipe-IT Data"; }
     }
 
     function toggleTargetList() {
@@ -131,46 +117,31 @@
         document.getElementById('target-id').innerHTML = list.map(i => `<option value="${i.id}">${i.name || i.display_name}</option>`).join('');
     }
 
-    function addToHistory(msg, type) {
-        const historyEl = document.getElementById('scan-history');
-        const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        const item = `<div class="history-item ${type === 'success' ? 'ok' : 'err'}">[${time}] ${msg}</div>`;
-        historyEl.innerHTML = item + historyEl.innerHTML;
-        if (historyEl.children.length > 5) historyEl.lastElementChild.remove();
-    }
-
     async function onScanSuccess(tag) {
         const cleanTag = tag.toString().toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
         if (cleanTag.length < 5) return;
         const now = Date.now();
         if (cleanTag === lastScannedTag && (now - lastScannedTime) < 2000) return;
-        if (scannedQueue.some(i => i.tag === cleanTag)) {
-            statusDiv.innerText = "Already in batch: " + cleanTag;
-            return;
-        }
-        lastScannedTag = cleanTag;
-        lastScannedTime = now;
-        statusDiv.innerText = "Looking up: " + cleanTag;
+        if (scannedQueue.some(i => i.tag === cleanTag)) return;
+
+        lastScannedTag = cleanTag; lastScannedTime = now;
+        statusDiv.innerText = "Lookup: " + cleanTag;
 
         try {
             const response = await proxyRequest(`/hardware/bytag/${cleanTag}`);
             let asset = response.id ? response : (response.rows && response.rows.length > 0 ? response.rows[0] : null);
-
             if (asset && asset.id) {
                 document.body.classList.add('flash-success');
                 setTimeout(() => document.body.classList.remove('flash-success'), 800);
                 beep.play();
-                const gType = document.getElementById('target-type').value;
-                const gId = document.getElementById('target-id').value;
-                const gName = document.getElementById('target-id').options[document.getElementById('target-id').selectedIndex].text;
-
                 scannedQueue.push({ 
                     id: asset.id, tag: cleanTag, name: asset.model.name, 
-                    target_type: gType, target_id: gId, target_name: gName 
+                    target_type: document.getElementById('target-type').value, 
+                    target_id: document.getElementById('target-id').value, 
+                    target_name: document.getElementById('target-id').options[document.getElementById('target-id').selectedIndex].text 
                 });
                 updateUI();
-                addToHistory(`Added ${cleanTag}`, 'success');
-                statusDiv.innerText = "Found: " + cleanTag;
+                statusDiv.innerText = "Added: " + cleanTag;
             } else { triggerFail(cleanTag); }
         } catch (e) { triggerFail(cleanTag); }
     }
@@ -179,44 +150,13 @@
         document.body.classList.add('flash-fail');
         setTimeout(() => document.body.classList.remove('flash-fail'), 800);
         statusDiv.innerText = "Not Found: " + tag;
-        addToHistory(`Failed: ${tag}`, 'fail');
     }
 
     function updateUI() {
         const listEl = document.getElementById('scan-list');
-        listEl.innerHTML = scannedQueue.map((item, idx) => `
-            <div id="item-${idx}" class="scan-item">
-                <div style="display:flex; justify-content:space-between;">
-                    <span><span class="icon">⏳</span> <strong>${item.tag}</strong></span>
-                    <button onclick="removeFromQueue(${idx})" style="border:none; background:none; color:var(--danger); font-size:18px;">×</button>
-                </div>
-                <span class="status-tag">${item.name} ➔ ${item.target_name} 
-                    <button onclick="editItemTarget(${idx})" style="font-size:9px; border:none; background:var(--border); padding:2px 5px; border-radius:3px; margin-left:5px;">Change</button>
-                </span>
-            </div>`).join('');
+        listEl.innerHTML = scannedQueue.map((item, idx) => `<div class="scan-item"><strong>${item.tag}</strong> - ${item.name} ➔ ${item.target_name}</div>`).join('');
         document.getElementById('batch-controls').style.display = scannedQueue.length > 0 ? 'block' : 'none';
         document.getElementById('count').innerText = scannedQueue.length;
-    }
-
-    function editItemTarget(idx) {
-        const gName = document.getElementById('target-id').options[document.getElementById('target-id').selectedIndex].text;
-        if (confirm(`Change this item to: ${gName}?`)) {
-            scannedQueue[idx].target_type = document.getElementById('target-type').value;
-            scannedQueue[idx].target_id = document.getElementById('target-id').value;
-            scannedQueue[idx].target_name = gName;
-            updateUI();
-        }
-    }
-
-    function applyGlobalToAll() {
-        if (scannedQueue.length === 0) return;
-        const gName = document.getElementById('target-id').options[document.getElementById('target-id').selectedIndex].text;
-        if (confirm(`Update all ${scannedQueue.length} items to ${gName}?`)) {
-            const gType = document.getElementById('target-type').value;
-            const gId = document.getElementById('target-id').value;
-            scannedQueue.forEach(i => { i.target_type = gType; i.target_id = gId; i.target_name = gName; });
-            updateUI();
-        }
     }
 
     async function processBatch(action) {
@@ -226,70 +166,58 @@
 
         for (let i = 0; i < scannedQueue.length; i++) {
             const item = scannedQueue[i];
-            const listItem = document.getElementById(`item-${i}`);
             document.getElementById('progress-bar').style.width = ((i+1)/scannedQueue.length*100) + "%";
             document.getElementById('progress-text').innerText = `Syncing ${i+1}/${scannedQueue.length}...`;
 
-            try {
-                // If OUT: Clear previous checkout + Update Status Label first
-                if (action === 'OUT') {
-                    await proxyRequest(`/hardware/${item.id}/checkin`, "POST", { status_id: sId });
-                    await proxyRequest(`/hardware/${item.id}`, "PATCH", { status_id: sId });
-                }
-
-                let endpoint = `/hardware/${item.id}/${action === 'IN' ? 'checkin' : 'checkout'}`;
-                let payload = action === 'IN' ? 
-                    { status_id: sId } : 
-                    { checkout_to_type: item.target_type, [`assigned_${item.target_type}`]: item.target_id };
-                
-                if (action === 'AUDIT') {
-                    endpoint = `/hardware/audit`;
-                    payload = { asset_tag: item.tag, location_id: item.target_id, note: "Batch Audit" };
-                }
-
-                const res = await proxyRequest(endpoint, "POST", payload);
-                if (listItem) {
-                    listItem.style.background = res.status === "success" ? "rgba(46, 204, 113, 0.2)" : "rgba(231, 76, 60, 0.2)";
-                    listItem.querySelector('.icon').innerText = res.status === "success" ? "✅" : "❌";
-                }
-                await new Promise(r => setTimeout(r, 600)); 
-            } catch (e) { }
+            if (action === 'OUT') {
+                await proxyRequest(`/hardware/${item.id}/checkin`, "POST", { status_id: sId });
+                await proxyRequest(`/hardware/${item.id}`, "PATCH", { status_id: sId });
+            }
+            let endpoint = `/hardware/${item.id}/${action === 'IN' ? 'checkin' : 'checkout'}`;
+            let payload = action === 'IN' ? { status_id: sId } : { checkout_to_type: item.target_type, [`assigned_${item.target_type}`]: item.target_id };
+            await proxyRequest(endpoint, "POST", payload);
+            await new Promise(r => setTimeout(r, 600)); 
         }
-        statusDiv.innerText = "Batch Complete.";
+
+        const auditData = { action, count: scannedQueue.length, details: scannedQueue.map(i => `${i.tag} (${i.name}) ➔ ${i.target_name}`) };
+        saveBatchToAuditLog(auditData);
+        await proxyRequest("email-log", "POST", auditData);
+
+        statusDiv.innerText = "Batch Complete & Email Sent.";
+        scannedQueue = []; updateUI();
+        document.getElementById('progress-container').style.display = 'none';
     }
 
-    let searchTimeout;
-    function debounceSearch() {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(async () => {
-            const q = document.getElementById('search-input').value;
-            if (q.length < 3) return;
-            const d = await proxyRequest(`/hardware?search=${q}&limit=5`);
-            document.getElementById('search-results').innerHTML = d.rows.map(a => `
-                <div class="search-result" onclick="onScanSuccess('${a.asset_tag}')">
-                    <strong>${a.asset_tag}</strong> - ${a.model.name}
-                </div>`).join('');
-        }, 500);
+    function saveBatchToAuditLog(entry) {
+        const logs = JSON.parse(localStorage.getItem('snipe_audit') || '[]');
+        entry.timestamp = new Date().toLocaleString();
+        logs.unshift(entry);
+        localStorage.setItem('snipe_audit', JSON.stringify(logs.slice(0, 50)));
+    }
+
+    function showAuditLogs() {
+        const logs = JSON.parse(localStorage.getItem('snipe_audit') || '[]');
+        document.getElementById('audit-modal').style.display = 'block';
+        document.getElementById('audit-log-content').innerHTML = logs.map(l => `
+            <div style="border-bottom:1px solid #444; padding:10px 0;">
+                <small>${l.timestamp}</small><br><strong>${l.action}</strong> (${l.count} items)
+                <div style="font-size:10px; opacity:0.7;">${l.details.join('<br>')}</div>
+            </div>`).join('');
+    }
+
+    function applyGlobalToAll() {
+        const gType = document.getElementById('target-type').value;
+        const gId = document.getElementById('target-id').value;
+        const gName = document.getElementById('target-id').options[document.getElementById('target-id').selectedIndex].text;
+        scannedQueue.forEach(i => { i.target_type = gType; i.target_id = gId; i.target_name = gName; });
+        updateUI();
     }
 
     function toggleDarkMode() {
         const theme = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
         document.documentElement.setAttribute("data-theme", theme);
-        localStorage.setItem("theme", theme);
-        document.getElementById("theme-toggle").innerText = theme === "dark" ? "☀️" : "🌙";
     }
 
-    function exportToCSV() {
-        let csv = "Tag,Model,Target\n" + scannedQueue.map(i => `${i.tag},${i.name},${i.target_name}`).join("\n");
-        const blob = new Blob([csv], { type: 'text/csv' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = 'backup.csv'; a.click();
-    }
-
-    if (localStorage.getItem("theme") === "dark") toggleDarkMode();
-    function removeFromQueue(idx) { scannedQueue.splice(idx, 1); updateUI(); }
-    function clearBatch() { if(confirm("Clear list?")) { scannedQueue = []; updateUI(); } }
     loadResources();
 </script>
 </body>
