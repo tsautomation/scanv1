@@ -1,0 +1,15 @@
+{
+  "name": "SnipeScan Pro",
+  "short_name": "SnipeScan",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#f8f9fa",
+  "theme_color": "#2ecc71",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/25/25231.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
