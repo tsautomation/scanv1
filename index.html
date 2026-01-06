@@ -30,7 +30,6 @@
         .tag-main { font-weight: bold; font-size: 15px; display: block; }
         .tag-subtext { font-size: 12px; color: var(--secondary); display: block; }
 
-        /* Info Modal Styling */
         #info-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:4000; justify-content:center; align-items:center; }
         .info-card { background:var(--card-bg); width:85%; max-width:380px; border-radius:15px; padding:20px; border-top: 5px solid var(--warning); box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
         .info-row { margin-bottom:10px; border-bottom:1px solid var(--border); padding-bottom:4px; }
@@ -171,10 +170,12 @@
             return; 
         }
         
-        // Re-added Asset Name/Model field here
+        // Changed "Asset Name / Model" to "Model" 
+        // Added distinct "Asset Name" field
         const rows = [
             {l: "Asset Tag", v: asset.asset_tag},
-            {l: "Asset Name / Model", v: asset.model?.name || asset.name},
+            {l: "Asset Name", v: asset.name},
+            {l: "Model", v: asset.model?.name},
             {l: "Current Status", v: asset.status_label?.name},
             {l: "Location", v: asset.location?.name || asset.default_location?.name},
             {l: "Assigned To", v: asset.assigned_to?.name || "Unassigned"},
