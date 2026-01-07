@@ -258,21 +258,31 @@
 } else if (type === 'AUDIT') { 
     document.getElementById('loading-msg').innerText = `Auditing: ${asset.tag}`;
     
-    // Generate today's date and next year's date in YYYY-MM-DD format
+    // Calculate dates in YYYY-MM-DD format
     const today = new Date().toISOString().split('T')[0];
     const nextYearDate = new Date();
     nextYearDate.setFullYear(nextYearDate.getFullYear() + 1);
     const nextAudit = nextYearDate.toISOString().split('T')[0];
 
+    // 1. Submit the Formal Audit (creates the History entry)
     const auditPayload = { 
         asset_tag: asset.tag, 
         location_id: targetId,
         note: "Mobile Audit Scan via SnipeScan Pro",
-        last_audit_date: today,      // The date the audit happened
-        next_audit_date: nextAudit   // When the next one is due
+        last_audit_date: today,
+        next_audit_date: nextAudit
     };
+    await proxyRequest(`/hardware/${asset.id}/audit`, "POST", auditPayload);
 
-    await proxyRequest(`/hardware/${asset.id}/audit`, "POST", auditPayload); 
+    // 2. Small delay to let the database breathe
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    // 3. Update the Asset record directly (updates the "Last Audit" column in Snipe-IT)
+    // We use a PATCH request to specifically update fields without checking out/in
+    await proxyRequest(`/hardware/${asset.id}`, "PATCH", {
+        last_audit_date: today,
+        next_audit_date: nextAudit
+    });
 }
             
             // Small heartbeat delay between different assets in the loop
