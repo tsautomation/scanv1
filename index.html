@@ -251,16 +251,20 @@
 
                 if (type === 'OUT') { 
                     document.getElementById('loading-msg').innerText = `Checking In: ${asset.tag}`;
-                    await proxyRequest(`/hardware/${asset.id}/checkin`, "POST", { status_id: sId, note: "Auto-checkin before re-assignment" });
+                    await proxyRequest(`/hardware/${asset.id}/checkin`, "POST", { status_id: sId, notes: "Auto-checkin before re-assignment" });
                     await new Promise(r => setTimeout(r, 500));
                     document.getElementById('loading-msg').innerText = `Checking Out: ${asset.tag}`;
                     await proxyRequest(`/hardware/${asset.id}/checkout`, "POST", { 
-                        checkout_to_type: tType, assigned_user: targetId, assigned_location: targetId, status_id: sId, note: finalNote 
+                        checkout_to_type: tType, 
+                        assigned_user: targetId, 
+                        assigned_location: targetId, 
+                        status_id: sId, 
+                        notes: finalNote 
                     });
 
                 } else if (type === 'IN') { 
                     document.getElementById('loading-msg').innerText = `Checking In: ${asset.tag}`;
-                    await proxyRequest(`/hardware/${asset.id}/checkin`, "POST", { status_id: sId, note: finalNote }); 
+                    await proxyRequest(`/hardware/${asset.id}/checkin`, "POST", { status_id: sId, notes: finalNote }); 
 
                 } else if (type === 'AUDIT') { 
                     document.getElementById('loading-msg').innerText = `Auditing: ${asset.tag}`;
@@ -270,13 +274,14 @@
                     const nextAudit = nextYearDate.toISOString().split('T')[0];
 
                     await proxyRequest(`/hardware/${asset.id}/audit`, "POST", { 
-                        asset_tag: asset.tag, location_id: parseInt(targetId), note: finalNote, next_audit_date: nextAudit
+                        asset_tag: asset.tag, location_id: parseInt(targetId), notes: finalNote, next_audit_date: nextAudit
                     }); 
-                    await proxyRequest(`/hardware/${asset.id}`, "PATCH", { last_audit_date: today, next_audit_date: nextAudit });
+                    await proxyRequest(`/hardware/${asset.id}`, "PATCH", { last_audit_date: today, next_audit_date: nextAudit, notes: finalNote });
 
                 } else if (type === 'NOTE_ONLY') {
                     document.getElementById('loading-msg').innerText = `Updating Note: ${asset.tag}`;
-                    await proxyRequest(`/hardware/${asset.id}`, "PATCH", { note: finalNote });
+                    // IMPORTANT: Snipe-IT API uses 'notes' for PATCH updates
+                    await proxyRequest(`/hardware/${asset.id}`, "PATCH", { notes: finalNote });
                 }
                 await new Promise(r => setTimeout(r, 200));
             }
