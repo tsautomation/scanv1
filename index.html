@@ -220,89 +220,69 @@
 async function processBatch(type) {
     if (!scannedQueue.length) return;
     
-    // 1. Get Values from UI
     const targetId = document.getElementById('target-id').value;
     const targetName = document.getElementById('target-id').options[document.getElementById('target-id').selectedIndex].text;
     const tType = document.getElementById('target-type').value;
     const sId = document.getElementById('status-id').value;
 
-    showLoading(`Processing ${type}...`);
+    showLoading("Syncing with Snipe-IT...");
 
     try {
         for (const asset of scannedQueue) {
-            // Update Loading Message
-            document.getElementById('loading-msg').innerText = `${type}: ${asset.tag}`;
-
             if (type === 'OUT') { 
-                // Step A: Force Check-in
+                // 1. FORCED CHECK-IN FIRST
+                document.getElementById('loading-msg').innerText = `Checking In: ${asset.tag}`;
                 await proxyRequest(`/hardware/${asset.id}/checkin`, "POST", { 
-                    status_id: parseInt(sId), 
-                    note: "Auto-checkin before re-assignment" 
+                    status_id: sId, 
+                    note: "Auto-checkin before re-assignment via Mobile" 
                 });
                 
-                await new Promise(r => setTimeout(r, 500)); // Database breather
+                // 2. PAUSE (500ms) to let Snipe-IT database catch up
+                await new Promise(resolve => setTimeout(resolve, 500));
                 
-                // Step B: Check-out
-                await proxyRequest(`/hardware/${asset.id}/checkout`, "POST", { 
+                // 3. NOW CHECK-OUT
+                document.getElementById('loading-msg').innerText = `Checking Out: ${asset.tag}`;
+                let p = { 
                     checkout_to_type: tType, 
-                    assigned_user: parseInt(targetId), 
-                    assigned_location: parseInt(targetId), 
-                    status_id: parseInt(sId),
+                    assigned_user: targetId, 
+                    assigned_location: targetId, 
+                    status_id: sId,
                     note: "Checked out via SnipeScan Pro" 
-                });
+                }; 
+                await proxyRequest(`/hardware/${asset.id}/checkout`, "POST", p);
 
             } else if (type === 'IN') { 
-                await proxyRequest(`/hardware/${asset.id}/checkin`, "POST", { 
-                    status_id: parseInt(sId),
-                    note: "Standard Check-in via Mobile"
-                }); 
+                document.getElementById('loading-msg').innerText = `Checking In: ${asset.tag}`;
+                await proxyRequest(`/hardware/${asset.id}/checkin`, "POST", { status_id: sId }); 
 
             } else if (type === 'AUDIT') { 
-                // Setup v6.0.14 Dates
-                const today = new Date().toISOString().split('T')[0];
-                const nextYearDate = new Date();
-                nextYearDate.setFullYear(nextYearDate.getFullYear() + 1);
-                const nextAudit = nextYearDate.toISOString().split('T')[0];
-
-                // Step A: Formal Audit Endpoint
+                document.getElementById('loading-msg').innerText = `Auditing: ${asset.tag}`;
                 await proxyRequest(`/hardware/${asset.id}/audit`, "POST", { 
-                    asset_tag: String(asset.tag), 
-                    location_id: parseInt(targetId) || null,
-                    note: "Official Audit via SnipeScan Pro",
-                    next_audit_date: nextAudit
+                    asset_tag: asset.tag, 
+                    location_id: targetId,
+                    note: "Mobile Audit Scan"
                 }); 
-
-                await new Promise(r => setTimeout(r, 300));
-
-                // Step B: Update Asset Metadata (PATCH)
-                await proxyRequest(`/hardware/${asset.id}`, "PATCH", {
-                    last_audit_date: today,
-                    next_audit_date: nextAudit
-                });
             }
             
-            // Heartbeat pause between different assets
-            await new Promise(r => setTimeout(r, 200));
+            // Small heartbeat delay between different assets in the loop
+            await new Promise(resolve => setTimeout(resolve, 200));
         }
 
-        // 2. Send the PDF/Email Log
-        showLoading("Sending PDF Report...");
+        // Send PDF Report
+        showLoading("Generating PDF Report...");
         await proxyRequest('email-log', 'POST', {
             action: type,
             count: scannedQueue.length,
             details: scannedQueue.map(a => `${a.tag} (${a.name}) ➔ ${targetName}`)
         });
 
-        alert(`Success! ${type} complete for ${scannedQueue.length} items.`);
+        alert("Success! Snipe-IT updated and PDF emailed.");
         scannedQueue = []; 
         updateUI();
-
     } catch (e) { 
         console.error("Batch Error:", e);
-        alert("An error occurred. Check the Google Script 'Executions' tab for details."); 
-    } finally { 
-        hideLoading(); 
-    }
+        alert("Process encountered an error. Please check Snipe-IT logs."); 
+    } finally { hideLoading(); }
 }
 
     function updateUI() {
