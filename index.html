@@ -217,92 +217,92 @@
         } finally { setTimeout(() => { isScanningLocked = false; }, 1000); }
     }
 
-    async function processBatch(type) {
+async function processBatch(type) {
     if (!scannedQueue.length) return;
     
+    // 1. Get Values from UI
     const targetId = document.getElementById('target-id').value;
     const targetName = document.getElementById('target-id').options[document.getElementById('target-id').selectedIndex].text;
     const tType = document.getElementById('target-type').value;
     const sId = document.getElementById('status-id').value;
 
-    showLoading("Syncing with Snipe-IT...");
+    showLoading(`Processing ${type}...`);
 
     try {
         for (const asset of scannedQueue) {
+            // Update Loading Message
+            document.getElementById('loading-msg').innerText = `${type}: ${asset.tag}`;
+
             if (type === 'OUT') { 
-                // 1. FORCED CHECK-IN FIRST
-                document.getElementById('loading-msg').innerText = `Checking In: ${asset.tag}`;
+                // Step A: Force Check-in
                 await proxyRequest(`/hardware/${asset.id}/checkin`, "POST", { 
-                    status_id: sId, 
-                    note: "Auto-checkin before re-assignment via Mobile" 
+                    status_id: parseInt(sId), 
+                    note: "Auto-checkin before re-assignment" 
                 });
                 
-                // 2. PAUSE (500ms) to let Snipe-IT database catch up
-                await new Promise(resolve => setTimeout(resolve, 500));
+                await new Promise(r => setTimeout(r, 500)); // Database breather
                 
-                // 3. NOW CHECK-OUT
-                document.getElementById('loading-msg').innerText = `Checking Out: ${asset.tag}`;
-                let p = { 
+                // Step B: Check-out
+                await proxyRequest(`/hardware/${asset.id}/checkout`, "POST", { 
                     checkout_to_type: tType, 
-                    assigned_user: targetId, 
-                    assigned_location: targetId, 
-                    status_id: sId,
+                    assigned_user: parseInt(targetId), 
+                    assigned_location: parseInt(targetId), 
+                    status_id: parseInt(sId),
                     note: "Checked out via SnipeScan Pro" 
-                }; 
-                await proxyRequest(`/hardware/${asset.id}/checkout`, "POST", p);
+                });
 
             } else if (type === 'IN') { 
-                document.getElementById('loading-msg').innerText = `Checking In: ${asset.tag}`;
-                await proxyRequest(`/hardware/${asset.id}/checkin`, "POST", { status_id: sId }); 
+                await proxyRequest(`/hardware/${asset.id}/checkin`, "POST", { 
+                    status_id: parseInt(sId),
+                    note: "Standard Check-in via Mobile"
+                }); 
 
-} else if (type === 'AUDIT') { 
-    document.getElementById('loading-msg').innerText = `Auditing: ${asset.tag}`;
-    
-    const today = new Date().toISOString().split('T')[0];
-    const nextYear = new Date();
-    nextYear.setFullYear(nextYear.getFullYear() + 1);
-    const nextAuditDate = nextYear.toISOString().split('T')[0];
+            } else if (type === 'AUDIT') { 
+                // Setup v6.0.14 Dates
+                const today = new Date().toISOString().split('T')[0];
+                const nextYearDate = new Date();
+                nextYearDate.setFullYear(nextYearDate.getFullYear() + 1);
+                const nextAudit = nextYearDate.toISOString().split('T')[0];
 
-    // v6.0.14 Payload Requirements
-    const auditPayload = { 
-        asset_tag: String(asset.tag),              // Must be string
-        location_id: parseInt(targetId) || null,   // Force to Integer or null
-        note: "Mobile Audit - v6 API",
-        last_audit_date: today,
-        next_audit_date: nextAuditDate
-    };
+                // Step A: Formal Audit Endpoint
+                await proxyRequest(`/hardware/${asset.id}/audit`, "POST", { 
+                    asset_tag: String(asset.tag), 
+                    location_id: parseInt(targetId) || null,
+                    note: "Official Audit via SnipeScan Pro",
+                    next_audit_date: nextAudit
+                }); 
 
-    // Try the direct Audit endpoint
-    await proxyRequest(`/hardware/${asset.id}/audit`, "POST", auditPayload);
+                await new Promise(r => setTimeout(r, 300));
 
-    // IMPORTANT for v6: Manually push the date to the asset record
-    // This ensures it shows up in the 'Last Audit' column in your main list
-    await proxyRequest(`/hardware/${asset.id}`, "PATCH", {
-        last_audit_date: today,
-        next_audit_date: nextAuditDate,
-        location_id: parseInt(targetId) || null
-    });
-}
+                // Step B: Update Asset Metadata (PATCH)
+                await proxyRequest(`/hardware/${asset.id}`, "PATCH", {
+                    last_audit_date: today,
+                    next_audit_date: nextAudit
+                });
+            }
             
-            // Small heartbeat delay between different assets in the loop
-            await new Promise(resolve => setTimeout(resolve, 200));
+            // Heartbeat pause between different assets
+            await new Promise(r => setTimeout(r, 200));
         }
 
-        // Send PDF Report
-        showLoading("Generating PDF Report...");
+        // 2. Send the PDF/Email Log
+        showLoading("Sending PDF Report...");
         await proxyRequest('email-log', 'POST', {
             action: type,
             count: scannedQueue.length,
             details: scannedQueue.map(a => `${a.tag} (${a.name}) ➔ ${targetName}`)
         });
 
-        alert("Success! Snipe-IT updated and PDF emailed.");
+        alert(`Success! ${type} complete for ${scannedQueue.length} items.`);
         scannedQueue = []; 
         updateUI();
+
     } catch (e) { 
         console.error("Batch Error:", e);
-        alert("Process encountered an error. Please check Snipe-IT logs."); 
-    } finally { hideLoading(); }
+        alert("An error occurred. Check the Google Script 'Executions' tab for details."); 
+    } finally { 
+        hideLoading(); 
+    }
 }
 
     function updateUI() {
