@@ -92,13 +92,6 @@
     </div>
 
     <div class="card">
-        <select id="target-type" onchange="toggleTargetList()"><option value="user">Assign to: Person</option><option value="location">Assign to: Location</option></select>
-        <input type="text" id="assign-search" placeholder="Filter names..." onkeyup="filterAssignList()">
-        <select id="target-id" onchange="updateUI()"></select>
-        <select id="status-id"></select>
-    </div>
-
-    <div class="card">
         <div style="display:flex; justify-content:space-between; align-items:center;">
             <strong>Queue (<span id="count">0</span>)</strong>
             <button onclick="clearBatch()" style="font-size:11px; color:var(--danger); background:none; border:none;">Clear All</button>
@@ -111,6 +104,14 @@
             <button class="btn" style="background:var(--warning); color:#222" onclick="processBatch('AUDIT')">Official Audit</button>
         </div>
     </div>
+
+    <div class="card">
+        <select id="target-type" onchange="toggleTargetList()"><option value="user">Assign to: Person</option><option value="location">Assign to: Location</option></select>
+        <input type="text" id="assign-search" placeholder="Filter target of assignment..." onkeyup="filterAssignList()">
+        <select id="target-id" onchange="updateUI()"></select>
+        <select id="status-id"></select>
+    </div>
+
 </div>
 
 <script>
