@@ -135,7 +135,6 @@
     function playBeep() {
         const now = Date.now();
         if (now - lastBeepTime < 3000) return;
-        
         lastBeepTime = now;
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
@@ -146,7 +145,6 @@
         gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
         osc.start();
         osc.stop(audioCtx.currentTime + 0.1);
-        
         const rEl = document.getElementById('reader');
         rEl.classList.remove('flash-active');
         void rEl.offsetWidth;
@@ -168,7 +166,7 @@
                 const res = await proxyRequest(`/hardware/bytag/${cleanTag}`);
                 const asset = res.id ? res : (res.rows?.[0] || null);
                 displayInfo(asset, cleanTag);
-            } catch (e) { alert("Error"); isScanningLocked = false; }
+            } catch (e) { alert("Error fetching info"); isScanningLocked = false; }
             return;
         }
 
@@ -191,19 +189,32 @@
         }
 
         if (scannedQueue.some(i => i.tag === cleanTag)) return;
-
         playBeep();
-        document.getElementById('status').innerText = `✅ Added ${cleanTag}`;
-        setTimeout(() => { if(!infoMode) document.getElementById('status').innerText = "Ready"; }, 1500);
         addAssetToQueue(cleanTag);
     }
 
-function displayInfo(asset, tag) {
-        if (!asset) { alert("Not found"); closeInfoModal(); return; }
-        
-        const snipeUrl = "https://snipe.thecitylinkgroup.com"; // REPLACE THIS WITH YOUR DOMAIN
+    // --- ADDED BACK: THIS WAS MISSING ---
+    async function addAssetToQueue(tag) {
+        isScanningLocked = true;
+        document.getElementById('status').innerText = `Adding ${tag}...`;
+        try {
+            const res = await proxyRequest(`/hardware/bytag/${tag}`);
+            const asset = res.id ? res : (res.rows?.[0] || null);
+            if (asset) {
+                scannedQueue.push({ id: asset.id, tag: tag, name: asset.model?.name || "Unknown Model" });
+                updateUI();
+                document.getElementById('status').innerText = `✅ Added ${tag}`;
+            } else {
+                alert(`Asset ${tag} not found`);
+            }
+        } catch (e) { alert("Error adding asset to queue"); }
+        setTimeout(() => { isScanningLocked = false; document.getElementById('status').innerText = "Ready"; }, 1000);
+    }
 
-        // 1. Handle the Image
+    function displayInfo(asset, tag) {
+        if (!asset) { alert("Not found"); closeInfoModal(); return; }
+        const snipeUrl = "https://snipe.thecitylinkgroup.com"; 
+
         let imageHtml = '';
         if (asset.image) {
             imageHtml = `<img src="${asset.image}" style="width:100%; border-radius:8px; margin-bottom:15px; border:1px solid var(--border);">`;
@@ -233,7 +244,6 @@ function displayInfo(asset, tag) {
             </div>
         `).join('');
 
-        // 2. Handle the Deep Link
         const linkHtml = asset.id ? `
             <a href="${snipeUrl}/hardware/${asset.id}" target="_blank" class="btn" style="background:var(--secondary); text-decoration:none; margin-top:10px; display:block;">🌐 View in Snipe-IT</a>
         ` : '';
@@ -244,85 +254,53 @@ function displayInfo(asset, tag) {
 
     async function processBatch(type) {
         if (!scannedQueue.length) return;
-        
         const targetId = document.getElementById('target-id').value;
         const targetName = document.getElementById('target-id').options[document.getElementById('target-id').selectedIndex].text;
         const tType = document.getElementById('target-type').value;
         const sId = document.getElementById('status-id').value;
         const bNote = document.getElementById('batch-note').value;
 
-        if (type === 'NOTE_ONLY' && !bNote) {
-            alert("Please enter a note first.");
-            return;
-        }
-
+        if (type === 'NOTE_ONLY' && !bNote) { alert("Please enter a note first."); return; }
         showLoading("Syncing with Snipe-IT...");
 
         try {
             for (const asset of scannedQueue) {
                 const finalNote = bNote ? bNote : "Updated via SnipeScan Pro";
-
-                // We send both 'note' and 'notes' to cover all API versions/endpoints
-                const payload = { 
-                    status_id: sId, 
-                    note: finalNote, 
-                    notes: finalNote 
-                };
+                const payload = { status_id: sId, note: finalNote, notes: finalNote };
 
                 if (type === 'OUT') { 
                     document.getElementById('loading-msg').innerText = `Checking Out: ${asset.tag}`;
-                    // 1. Force Check-in
                     await proxyRequest(`/hardware/${asset.id}/checkin`, "POST", { status_id: sId, note: "Resetting for checkout" });
                     await new Promise(r => setTimeout(r, 500));
-                    // 2. Check-out
-                    await proxyRequest(`/hardware/${asset.id}/checkout`, "POST", { 
-                        checkout_to_type: tType, 
-                        assigned_user: targetId, 
-                        assigned_location: targetId, 
-                        ...payload // includes status_id, note, and notes
-                    });
-
+                    await proxyRequest(`/hardware/${asset.id}/checkout`, { checkout_to_type: tType, assigned_user: targetId, assigned_location: targetId, ...payload });
                 } else if (type === 'IN') { 
                     document.getElementById('loading-msg').innerText = `Checking In: ${asset.tag}`;
                     await proxyRequest(`/hardware/${asset.id}/checkin`, "POST", payload); 
-
                 } else if (type === 'AUDIT') { 
                     document.getElementById('loading-msg').innerText = `Auditing: ${asset.tag}`;
-                    await proxyRequest(`/hardware/${asset.id}/audit`, "POST", { 
-                        asset_tag: asset.tag, 
-                        location_id: parseInt(targetId), 
-                        note: finalNote,
-                        notes: finalNote
-                    }); 
+                    await proxyRequest(`/hardware/${asset.id}/audit`, "POST", { asset_tag: asset.tag, location_id: parseInt(targetId), note: finalNote, notes: finalNote }); 
                 }
 
-                // 3. PERSISTENT UPDATE: This makes it show on the "General Info" tab
-                // PATCH on /hardware/{id} strictly uses 'notes'
+                // Force note to the Asset main profile
                 await proxyRequest(`/hardware/${asset.id}`, "PATCH", { notes: finalNote });
-                
                 await new Promise(r => setTimeout(r, 200));
             }
 
-            showLoading("Generating Report...");
             await proxyRequest('email-log', 'POST', {
-                action: type,
-                count: scannedQueue.length,
+                action: type, count: scannedQueue.length,
                 details: scannedQueue.map(a => `${a.tag} (${a.name}) ➔ ${type === 'NOTE_ONLY' ? 'Note Updated' : targetName}`)
             });
 
-            alert("Success! History and Asset notes updated.");
-            scannedQueue = []; 
-            document.getElementById('batch-note').value = '';
-            updateUI();
-        } catch (e) { alert("An error occurred. Check script logs."); } finally { hideLoading(); }
+            alert("Success!");
+            clearBatch();
+        } catch (e) { alert("An error occurred."); } finally { hideLoading(); }
     }
 
     function updateUI() {
         const sel = document.getElementById('target-id');
         const target = sel.options[sel.selectedIndex]?.text || "...";
         const displayQueue = [...scannedQueue].reverse();
-
-        document.getElementById('scan-list').innerHTML = displayQueue.map((item, idx) => {
+        document.getElementById('scan-list').innerHTML = displayQueue.map((item) => {
             const originalIdx = scannedQueue.findIndex(q => q.tag === item.tag);
             return `
             <div class="scan-item">
@@ -330,7 +308,6 @@ function displayInfo(asset, tag) {
                 <button onclick="removeFromQueue(${originalIdx})" style="border:none; background:none; color:var(--danger); font-size:24px;">&times;</button>
             </div>`;
         }).join('');
-
         document.getElementById('batch-controls').style.display = scannedQueue.length > 0 ? 'flex' : 'none';
         document.getElementById('count').innerText = scannedQueue.length;
     }
@@ -377,10 +354,10 @@ function displayInfo(asset, tag) {
                 if (!scannedQueue.some(q => q.tag === currentTag)) {
                     const res = await proxyRequest(`/hardware/bytag/${currentTag}`);
                     const asset = res.id ? res : (res.rows?.[0] || null);
-                    if (asset) scannedQueue.push({ id: asset.id, tag: currentTag, name: asset.model.name });
+                    if (asset) scannedQueue.push({ id: asset.id, tag: currentTag, name: asset.model?.name || "Unknown" });
                 }
             }
-        } catch(e) { alert("Range search partially failed."); }
+        } catch(e) { }
         updateUI(); hideLoading(); exitRangeMode();
     }
 
@@ -396,7 +373,7 @@ function displayInfo(asset, tag) {
     function closeInfoModal() { document.getElementById('info-modal').style.display = 'none'; infoMode = false; isScanningLocked = false; document.getElementById('info-btn').style.background = "var(--card-bg)"; document.getElementById('status').innerText = "Ready"; }
     function addManualTag() { const t = document.getElementById('manual-tag').value.toUpperCase(); if(t) addAssetToQueue(t); document.getElementById('manual-tag').value = ''; }
     function removeFromQueue(i) { scannedQueue.splice(i, 1); updateUI(); }
-    function clearBatch() { scannedQueue = []; updateUI(); }
+    function clearBatch() { scannedQueue = []; updateUI(); document.getElementById('batch-note').value = ''; }
     function exitRangeMode() { rangeMode = false; document.getElementById('range-box').style.display = 'none'; }
     function showLoading(m) { document.getElementById('loading-msg').innerText = m; document.getElementById('loading-overlay').style.display = 'flex'; }
     function hideLoading() { document.getElementById('loading-overlay').style.display = 'none'; }
