@@ -201,14 +201,20 @@
 function displayInfo(asset, tag) {
         if (!asset) { alert("Not found"); closeInfoModal(); return; }
         
-        // Extracting base URL from the API response or setting a placeholder
-        // Usually, Snipe-IT returns 'https://yourinstance.com/hardware/123' in the API
-        const assetUrl = asset.id ? `${PROXY_URL.split('/macros')[0].replace('script.google.com', 'your-snipe-url.com')}/hardware/${asset.id}` : "#";
+        const snipeUrl = "https://YOUR_SNIPE_DOMAIN"; // REPLACE THIS WITH YOUR DOMAIN
+
+        // 1. Handle the Image
+        let imageHtml = '';
+        if (asset.image) {
+            imageHtml = `<img src="${asset.image}" style="width:100%; border-radius:8px; margin-bottom:15px; border:1px solid var(--border);">`;
+        } else if (asset.model?.image) {
+            imageHtml = `<img src="${asset.model.image}" style="width:100%; border-radius:8px; margin-bottom:15px; border:1px solid var(--border);">`;
+        }
 
         const rows = [
             {l: "Asset Tag", v: asset.asset_tag},
             {l: "Asset Name", v: asset.name},
-            {l: "Category", v: asset.category?.name || (asset.model?.category?.name)},
+            {l: "Category", v: asset.category?.name || asset.model?.category?.name},
             {l: "Model", v: asset.model?.name},
             {l: "Status", v: asset.status_label?.name},
             {l: "Location", v: asset.location?.name || asset.default_location?.name},
@@ -227,26 +233,13 @@ function displayInfo(asset, tag) {
             </div>
         `).join('');
 
-        // Adding a 'View in Snipe-IT' button at the bottom
+        // 2. Handle the Deep Link
         const linkHtml = asset.id ? `
-            <a href="https://snipe.thecitylinkgroup.com/hardware/${asset.id}" target="_blank" class="btn" style="background:var(--primary); text-decoration:none; margin-top:10px; display:block;">🌐 View in Snipe-IT</a>
+            <a href="${snipeUrl}/hardware/${asset.id}" target="_blank" class="btn" style="background:var(--secondary); text-decoration:none; margin-top:10px; display:block;">🌐 View in Snipe-IT</a>
         ` : '';
 
-        document.getElementById('info-fields').innerHTML = fieldsHtml + linkHtml;
+        document.getElementById('info-fields').innerHTML = imageHtml + fieldsHtml + linkHtml;
         document.getElementById('info-modal').style.display = 'flex';
-    }
-
-    async function addAssetToQueue(tag) {
-        if (scannedQueue.some(i => i.tag === tag)) return;
-        isScanningLocked = true;
-        try {
-            const res = await proxyRequest(`/hardware/bytag/${tag}`);
-            const asset = res.id ? res : (res.rows?.[0] || null);
-            if (asset) {
-                scannedQueue.push({ id: asset.id, tag: tag, name: asset.model.name });
-                updateUI();
-            }
-        } finally { setTimeout(() => { isScanningLocked = false; }, 1000); }
     }
 
     async function processBatch(type) {
