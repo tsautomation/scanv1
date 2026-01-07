@@ -51,9 +51,6 @@
 <div id="loading-overlay">
     <div style="border:4px solid #fff; border-left-color:var(--secondary); width:30px; height:30px; border-radius:50%; animation:spin 1s linear infinite;"></div>
     <div id="loading-msg" style="margin-top:15px; font-weight:bold;">Processing...</div>
-    <div id="progress-container" style="display:none; width:70%; background:#444; height:10px; border-radius:5px; margin-top:15px; overflow:hidden;">
-        <div id="progress-bar" style="width:0%; height:100%; background:var(--primary); transition:width 0.3s;"></div>
-    </div>
 </div>
 
 <div id="info-modal">
@@ -66,7 +63,7 @@
 
 <div class="container">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-        <h2 style="margin: 0;">📦 SnipeScan Pro V2.2</h2>
+        <h2 style="margin: 0;">📦 SnipeScan Pro V1.9</h2>
         <button onclick="toggleDarkMode()" style="background:none; border:none; font-size: 20px;">🌙</button>
     </div>
     
@@ -125,21 +122,19 @@
         <label style="font-size: 11px; font-weight: bold; color: var(--secondary); text-transform: uppercase; margin-top: 10px; display: block;">Append Note to Batch</label>
         <textarea id="batch-note" placeholder="Enter note for all items..." style="height: 80px; font-family: inherit; resize: vertical;"></textarea>
     </div>
-    <input type="file" id="camera-input" accept="image/*" capture="environment" style="display:none;" onchange="handleFileUpload(this)">
 
 </div>
 
 <script>
-    const PROXY_URL = "https://script.google.com/macros/s/AKfycbxg-J-zmEe2Bylbempfmhf_Jcd0f9wg3E1iLql5zwM9pPHiD4Wg456BvcB7t2x5LDkemQ/exec"; 
+    const PROXY_URL = "https://script.google.com/macros/s/AKfycbxU-wLShftUBO0joFRbtR1nkn6SQzRhQDP_Pcd7MV0HLlZJIt0jJMaaoC6hpZC_IaU97w/exec"; 
     let scannedQueue = [], users = [], locations = [], statusLabels = [];
     let isScanningLocked = false, infoMode = false, rangeMode = false;
     let lastBeepTime = 0;
-    let currentPhotoAssetId = null;
 
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     function playBeep() {
         const now = Date.now();
-        if (now - lastBeepTime < 1000) return;
+        if (now - lastBeepTime < 3000) return;
         lastBeepTime = now;
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
@@ -198,32 +193,26 @@
         addAssetToQueue(cleanTag);
     }
 
-async function addAssetToQueue(tag) {
-    isScanningLocked = true;
-    document.getElementById('status').innerText = `Adding ${tag}...`;
-    try {
-        // CORRECTED: Call the API to find the asset by tag
-        const res = await proxyRequest(`/hardware/bytag/${tag}`);
-        const asset = res.id ? res : (res.rows?.[0] || null);
-        
-        if (asset) {
-            scannedQueue.push({ id: asset.id, tag: tag, name: asset.model?.name || "Unknown Model" });
-            updateUI();
-            document.getElementById('status').innerText = `✅ Added ${tag}`;
-        } else { 
-            alert(`Asset ${tag} not found`); 
-        }
-    } catch (e) { 
-        alert("Error adding asset"); 
+    // --- ADDED BACK: THIS WAS MISSING ---
+    async function addAssetToQueue(tag) {
+        isScanningLocked = true;
+        document.getElementById('status').innerText = `Adding ${tag}...`;
+        try {
+            const res = await proxyRequest(`/hardware/bytag/${tag}`);
+            const asset = res.id ? res : (res.rows?.[0] || null);
+            if (asset) {
+                scannedQueue.push({ id: asset.id, tag: tag, name: asset.model?.name || "Unknown Model" });
+                updateUI();
+                document.getElementById('status').innerText = `✅ Added ${tag}`;
+            } else {
+                alert(`Asset ${tag} not found`);
+            }
+        } catch (e) { alert("Error adding asset to queue"); }
+        setTimeout(() => { isScanningLocked = false; document.getElementById('status').innerText = "Ready"; }, 1000);
     }
-    setTimeout(() => { 
-        isScanningLocked = false; 
-        document.getElementById('status').innerText = "Ready"; 
-    }, 1000);
-}
 
     function displayInfo(asset, tag) {
-        if (!asset) { alert("Not found"); isScanningLocked = false; return; }
+        if (!asset) { alert("Not found"); closeInfoModal(); return; }
         const snipeUrl = "https://snipe.thecitylinkgroup.com"; 
 
         let imageHtml = '';
@@ -241,7 +230,11 @@ async function addAssetToQueue(tag) {
             {l: "Status", v: asset.status_label?.name},
             {l: "Location", v: asset.location?.name || asset.default_location?.name},
             {l: "Assigned To", v: asset.assigned_to?.name || "Unassigned"},
-            {l: "Serial", v: asset.serial}
+            {l: "Purchase Date", v: asset.purchase_date?.date || asset.purchase_date},
+            {l: "Order Number", v: asset.order_number},
+            {l: "Warranty", v: asset.warranty_months ? `${asset.warranty_months} Months` : null},
+            {l: "Serial", v: asset.serial},
+            {l: "Last Audit", v: asset.last_audit_date?.formatted || 'Never'}
         ];
         
         const fieldsHtml = rows.map(r => `
@@ -253,16 +246,10 @@ async function addAssetToQueue(tag) {
 
         const linkHtml = asset.id ? `
             <a href="${snipeUrl}/hardware/${asset.id}" target="_blank" class="btn" style="background:var(--secondary); text-decoration:none; margin-top:10px; display:block;">🌐 View in Snipe-IT</a>
-            <button onclick="triggerCamera(${asset.id})" class="btn" style="background:var(--warning); color:#000; margin-top:10px; font-weight:bold;">📸 Add Photo to Files</button>
         ` : '';
 
         document.getElementById('info-fields').innerHTML = imageHtml + fieldsHtml + linkHtml;
         document.getElementById('info-modal').style.display = 'flex';
-    }
-
-    function closeInfoModal() {
-        document.getElementById('info-modal').style.display = 'none';
-        isScanningLocked = false;
     }
 
     async function processBatch(type) {
@@ -273,293 +260,158 @@ async function addAssetToQueue(tag) {
         const sId = document.getElementById('status-id').value;
         const bNote = document.getElementById('batch-note').value;
 
+        if (type === 'NOTE_ONLY' && !bNote) { alert("Please enter a note first."); return; }
         showLoading("Syncing with Snipe-IT...");
 
         try {
             for (const asset of scannedQueue) {
-                const finalNote = bNote || "Updated via SnipeScan Pro";
-                const payload = { status_id: sId, note: finalNote };
+                const finalNote = bNote ? bNote : "Updated via SnipeScan Pro";
+                const payload = { status_id: sId, note: finalNote, notes: finalNote };
 
                 if (type === 'OUT') { 
-                    await proxyRequest(`/hardware/${asset.id}/checkin`, "POST", { status_id: sId, note: "Resetting" });
+                    document.getElementById('loading-msg').innerText = `Checking Out: ${asset.tag}`;
+                    
+                    // 1. Force Check-in to clear previous assignment
+                    await proxyRequest(`/hardware/${asset.id}/checkin`, "POST", { status_id: sId, note: "Resetting for checkout" });
+                    
+                    // Small delay to allow Snipe-IT database to settle
                     await new Promise(r => setTimeout(r, 600));
+                    
+                    // 2. Perform actual Check-out (Added "POST" here - this was the missing piece)
                     await proxyRequest(`/hardware/${asset.id}/checkout`, "POST", { 
                         checkout_to_type: tType, 
                         assigned_user: targetId, 
                         assigned_location: targetId, 
                         ...payload 
                     });
+
                 } else if (type === 'IN') { 
+                    document.getElementById('loading-msg').innerText = `Checking In: ${asset.tag}`;
                     await proxyRequest(`/hardware/${asset.id}/checkin`, "POST", payload); 
+
                 } else if (type === 'AUDIT') { 
+                    document.getElementById('loading-msg').innerText = `Auditing: ${asset.tag}`;
                     await proxyRequest(`/hardware/${asset.id}/audit`, "POST", { 
-                        asset_tag: asset.tag, location_id: parseInt(targetId), note: finalNote 
+                        asset_tag: asset.tag, 
+                        location_id: parseInt(targetId), 
+                        note: finalNote, 
+                        notes: finalNote 
                     }); 
                 }
+
+                // 3. PERSISTENT UPDATE: Sync the note to the main Asset Profile
                 await proxyRequest(`/hardware/${asset.id}`, "PATCH", { notes: finalNote });
+                
+                await new Promise(r => setTimeout(r, 300));
             }
 
-            await proxyRequest('/email-log', 'POST', {
+            await proxyRequest('email-log', 'POST', {
                 action: type, count: scannedQueue.length,
-                details: scannedQueue.map(a => `${a.tag} (${a.name}) ➔ ${targetName}`)
+                details: scannedQueue.map(a => `${a.tag} (${a.name}) ➔ ${type === 'NOTE_ONLY' ? 'Note Updated' : targetName}`)
             });
 
-            alert("Success!");
+            alert("Batch Processed Successfully!");
             clearBatch();
-        } catch (e) { alert("Error processing batch"); } finally { hideLoading(); }
+        } catch (e) { 
+            console.error(e);
+            alert("An error occurred during processing. Please check the console."); 
+        } finally { hideLoading(); }
     }
 
     function updateUI() {
         const sel = document.getElementById('target-id');
         const target = sel.options[sel.selectedIndex]?.text || "...";
-        document.getElementById('scan-list').innerHTML = [...scannedQueue].reverse().map((item, i) => `
+        const displayQueue = [...scannedQueue].reverse();
+        document.getElementById('scan-list').innerHTML = displayQueue.map((item) => {
+            const originalIdx = scannedQueue.findIndex(q => q.tag === item.tag);
+            return `
             <div class="scan-item">
                 <div class="tag-info"><span class="tag-main">${item.tag}</span><span class="tag-subtext">${item.name} ➔ ${target}</span></div>
-                <button onclick="removeFromQueue(${scannedQueue.length - 1 - i})" style="border:none; background:none; color:var(--danger); font-size:24px;">&times;</button>
-            </div>`).join('');
-        document.getElementById('batch-controls').style.display = scannedQueue.length ? 'flex' : 'none';
+                <button onclick="removeFromQueue(${originalIdx})" style="border:none; background:none; color:var(--danger); font-size:24px;">&times;</button>
+            </div>`;
+        }).join('');
+        document.getElementById('batch-controls').style.display = scannedQueue.length > 0 ? 'flex' : 'none';
         document.getElementById('count').innerText = scannedQueue.length;
     }
 
-    async function loadResources() {
-        try {
-            const [u, l, s] = await Promise.all([
-                proxyRequest('/users?limit=500&sort=name'),
-                proxyRequest('/locations?limit=500'),
-                proxyRequest('/statuslabels')
-            ]);
-            users = u.rows || []; locations = l.rows || []; statusLabels = s.rows || [];
-            
-            document.getElementById('status-id').innerHTML = statusLabels.map(i => `<option value="${i.id}">${i.name}</option>`).join('');
-            toggleTargetList();
-            document.getElementById('status').innerText = "Ready";
-        } catch(e) { document.getElementById('status').innerText = "Offline"; }
+    function toggleSection(id) {
+        infoMode = false;
+        document.getElementById('info-btn').style.background = "var(--card-bg)";
+        document.getElementById('manual-single').style.display = 'none';
+        document.getElementById('range-box').style.display = 'none';
+        document.getElementById(id).style.display = 'block';
+        rangeMode = (id === 'range-box');
+        if(rangeMode) { document.getElementById('range-start-input').value = ''; document.getElementById('range-end-input').value = ''; }
     }
 
-    function toggleTargetList() {
-        const type = document.getElementById('target-type').value;
-        const list = type === 'user' ? users : locations;
-        document.getElementById('target-id').innerHTML = list.map(i => `<option value="${i.id}">${i.name || i.display_name}</option>`).join('');
+    function startInfoScan() {
+        infoMode = true; rangeMode = false; isScanningLocked = false;
+        document.getElementById('info-btn').style.background = "var(--warning)";
+        document.getElementById('status').innerText = "INFO MODE: Scan tag";
+        document.getElementById('manual-single').style.display = 'none';
+        document.getElementById('range-box').style.display = 'none';
+    }
+
+    function filterAssignList() {
+        const query = document.getElementById('assign-search').value.toLowerCase();
+        const select = document.getElementById('target-id');
+        const list = document.getElementById('target-type').value === 'user' ? users : locations;
+        const filtered = list.filter(item => (item.name || item.display_name).toLowerCase().includes(query));
+        select.innerHTML = filtered.map(i => `<option value="${i.id}">${i.name || i.display_name}</option>`).join('');
         updateUI();
     }
 
-    function removeFromQueue(idx) { scannedQueue.splice(idx, 1); updateUI(); }
-    function clearBatch() { scannedQueue = []; updateUI(); }
-    function showLoading(msg) { document.getElementById('loading-msg').innerText = msg; document.getElementById('loading-overlay').style.display = 'flex'; }
-    function hideLoading() { document.getElementById('loading-overlay').style.display = 'none'; }
-    function toggleDarkMode() { 
-        const b = document.body;
-        b.getAttribute('data-theme') === 'dark' ? b.removeAttribute('data-theme') : b.setAttribute('data-theme', 'dark');
+    async function manualRangeSubmit() {
+        const start = document.getElementById('range-start-input').value.toUpperCase();
+        const end = document.getElementById('range-end-input').value.toUpperCase();
+        if (!start || !end) return alert("Missing tags");
+        showLoading("Searching Range...");
+        try {
+            const prefix = start.match(/^[A-Z]*/)[0];
+            const sMatch = start.match(/\d+/), eMatch = end.match(/\d+/);
+            const sNum = parseInt(sMatch[0]), eNum = parseInt(eMatch[0]);
+            const low = Math.min(sNum, eNum), high = Math.max(sNum, eNum), pad = sMatch[0].length;
+            for (let i = low; i <= high; i++) {
+                const currentTag = prefix + i.toString().padStart(pad, '0');
+                if (!scannedQueue.some(q => q.tag === currentTag)) {
+                    const res = await proxyRequest(`/hardware/bytag/${currentTag}`);
+                    const asset = res.id ? res : (res.rows?.[0] || null);
+                    if (asset) scannedQueue.push({ id: asset.id, tag: currentTag, name: asset.model?.name || "Unknown" });
+                }
+            }
+        } catch(e) { }
+        updateUI(); hideLoading(); exitRangeMode();
     }
 
-    async function proxyRequest(e, m="GET", p=null, isFile=false, cType="", fName="") { 
+    async function proxyRequest(e, m="GET", p=null) { 
         const r = await fetch(PROXY_URL, {
             method:'POST', 
             mode: 'cors',
-            body:JSON.stringify({ endpoint: e, method: m, payload: p, isFormData: isFile, contentType: cType, fileName: fName })
+            body:JSON.stringify({endpoint:e, method:m, payload:p})
         }); 
         return r.json(); 
     }
 
-    function triggerCamera(assetId) {
-        currentPhotoAssetId = assetId;
-        document.getElementById('camera-input').click();
+    function closeInfoModal() { document.getElementById('info-modal').style.display = 'none'; infoMode = false; isScanningLocked = false; document.getElementById('info-btn').style.background = "var(--card-bg)"; document.getElementById('status').innerText = "Ready"; }
+    function addManualTag() { const t = document.getElementById('manual-tag').value.toUpperCase(); if(t) addAssetToQueue(t); document.getElementById('manual-tag').value = ''; }
+    function removeFromQueue(i) { scannedQueue.splice(i, 1); updateUI(); }
+    function clearBatch() { scannedQueue = []; updateUI(); document.getElementById('batch-note').value = ''; }
+    function exitRangeMode() { rangeMode = false; document.getElementById('range-box').style.display = 'none'; }
+    function showLoading(m) { document.getElementById('loading-msg').innerText = m; document.getElementById('loading-overlay').style.display = 'flex'; }
+    function hideLoading() { document.getElementById('loading-overlay').style.display = 'none'; }
+    function toggleDarkMode() { document.documentElement.setAttribute("data-theme", document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark"); }
+    function toggleTargetList() { document.getElementById('assign-search').value = ''; filterAssignList(); }
+
+    async function loadResources() {
+        try {
+            const [u, l, s] = await Promise.all([proxyRequest('/users?limit=500'), proxyRequest('/locations?limit=500'), proxyRequest('/statuslabels')]);
+            users = u.rows; locations = l.rows; statusLabels = s.rows;
+            toggleTargetList();
+            document.getElementById('status-id').innerHTML = statusLabels.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+            document.getElementById('status').innerText = "Ready";
+        } catch (e) { document.getElementById('status').innerText = "Error Loading Resources"; }
     }
-
-async function handleFileUpload(input) {
-    if (!input.files || !input.files[0]) return;
-    const file = input.files[0];
-    showLoading("Compressing & Uploading...");
-
-    try {
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-            const img = new Image();
-            img.onload = async () => {
-                // Set max dimensions
-                const MAX_WIDTH = 1200;
-                const MAX_HEIGHT = 1200;
-                let width = img.width;
-                let height = img.height;
-
-                // Calculate aspect ratio
-                if (width > height) {
-                    if (width > MAX_WIDTH) {
-                        height *= MAX_WIDTH / width;
-                        width = MAX_WIDTH;
-                    }
-                } else {
-                    if (height > MAX_HEIGHT) {
-                        width *= MAX_HEIGHT / height;
-                        height = MAX_HEIGHT;
-                    }
-                }
-
-                // Create Canvas
-                const canvas = document.createElement('canvas');
-                canvas.width = width;
-                canvas.height = height;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0, width, height);
-
-                // Convert to Base64 (0.7 is 70% quality)
-                const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
-
-                // Send to Proxy
-                const res = await proxyRequest(
-                    `/hardware/${currentPhotoAssetId}/upload`, 
-                    "POST", 
-                    compressedBase64, 
-                    true, 
-                    "image/jpeg", 
-                    `photo_${Date.now()}.jpg`
-                );
-
-                console.log("Snipe Response:", res);
-
-                if (res && (res.status === "success" || res.messages || res.id)) {
-                    alert("✅ Uploaded!");
-                } else {
-                    alert("❌ Failed: " + (res.messages || "Check console"));
-                }
-                
-                hideLoading();
-                input.value = '';
-            };
-            img.src = e.target.result;
-        };
-        reader.readAsDataURL(file);
-    } catch (err) {
-        alert("Error: " + err.toString());
-        hideLoading();
-    }
-}
-
-function toggleSection(id) {
-    const el = document.getElementById(id);
-    const isHidden = el.style.display === 'none';
-    
-    // Reset all navigation buttons to default style
-    const navBtns = document.querySelectorAll('.container > div:nth-child(4) button');
-    navBtns.forEach(b => {
-        b.style.background = 'var(--card-bg)';
-        b.style.borderColor = 'var(--border)';
-    });
-
-    document.getElementById('manual-single').style.display = 'none';
-    document.getElementById('range-box').style.display = 'none';
-    
-    if (isHidden) {
-        el.style.display = 'block';
-        // Highlight the active button (excluding Info Scan which has its own logic)
-        event.currentTarget.style.background = 'rgba(52, 152, 219, 0.1)';
-        event.currentTarget.style.borderColor = 'var(--secondary)';
-    }
-    
-    infoMode = false;
-    rangeMode = (id === 'range-box' && isHidden);
-    document.getElementById('info-btn').style.background = 'var(--card-bg)';
-}
-
-    function startInfoScan() {
-        infoMode = !infoMode;
-        rangeMode = false;
-        document.getElementById('manual-single').style.display = 'none';
-        document.getElementById('range-box').style.display = 'none';
-        
-        const btn = document.getElementById('info-btn');
-        btn.style.background = infoMode ? 'var(--warning)' : 'var(--card-bg)';
-        document.getElementById('status').innerText = infoMode ? "Mode: Info Scanning" : "Ready";
-    }
-
-    function addManualTag() {
-        const input = document.getElementById('manual-tag');
-        const tag = input.value.trim().toUpperCase();
-        if (tag) {
-            addAssetToQueue(tag);
-            input.value = '';
-        }
-    }
-
-    function exitRangeMode() {
-        rangeMode = false;
-        document.getElementById('range-box').style.display = 'none';
-        document.getElementById('range-start-input').value = '';
-        document.getElementById('range-end-input').value = '';
-        document.getElementById('range-status').innerText = "Step 1: Scan START Tag";
-    }
-
-async function manualRangeSubmit() {
-    const start = document.getElementById('range-start-input').value.trim();
-    const end = document.getElementById('range-end-input').value.trim();
-    
-    if (!start || !end) {
-        alert("Please enter or scan both start and end tags.");
-        return;
-    }
-
-    // Logic to separate letters from numbers (e.g., "TAG001" -> prefix "TAG", number 1)
-    const prefix = start.replace(/[0-9]/g, '');
-    const startNum = parseInt(start.replace(/\D/g, ''));
-    const endNum = parseInt(end.replace(/\D/g, ''));
-
-    if (isNaN(startNum) || isNaN(endNum)) {
-        alert("Invalid range: Tags must contain numbers.");
-        return;
-    }
-
-    if (startNum > endNum) {
-        alert("Start tag number cannot be higher than end tag.");
-        return;
-    }
-
-    const total = endNum - startNum + 1;
-    if (total > 100) {
-        if (!confirm(`You are about to add ${total} items. This may take a minute. Continue?`)) return;
-    }
-
-    // Show Loading with Progress Bar
-    const bar = document.getElementById('progress-bar');
-    const container = document.getElementById('progress-container');
-    bar.style.width = '0%';
-    container.style.display = 'block';
-    showLoading(`Processing 0 of ${total}...`);
-
-    for (let i = 0; i <= (endNum - startNum); i++) {
-        const currentNum = startNum + i;
-        // padStart ensures "001" stays "001" instead of becoming "1"
-        const currentTag = prefix + currentNum.toString().padStart(start.length - prefix.length, '0');
-        
-        // Update Message and Bar
-        const percent = Math.round(((i + 1) / total) * 100);
-        document.getElementById('loading-msg').innerText = `Adding ${currentTag} (${i + 1}/${total})`;
-        bar.style.width = percent + '%';
-
-        // Add to queue (this performs the API lookup)
-        await addAssetToQueue(currentTag);
-    }
-
-    // Clean up
-    setTimeout(() => {
-        container.style.display = 'none';
-        hideLoading();
-        exitRangeMode();
-    }, 500);
-}
-    
-    function filterAssignList() {
-        const val = document.getElementById('assign-search').value.toLowerCase();
-        const sel = document.getElementById('target-id');
-        const type = document.getElementById('target-type').value;
-        const list = type === 'user' ? users : locations;
-        
-        sel.innerHTML = list
-            .filter(i => (i.name || i.display_name || "").toLowerCase().includes(val))
-            .map(i => `<option value="${i.id}">${i.name || i.display_name}</option>`)
-            .join('');
-    }
-    
-    loadResources(); // Initial data load
+    loadResources();
 </script>
 </body>
 </html>
