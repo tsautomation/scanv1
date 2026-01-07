@@ -91,20 +91,25 @@
         <button onclick="exitRangeMode()" class="btn" style="background:var(--danger); width:100%; padding:8px; font-size:11px;">Cancel</button>
     </div>
 
-<div class="card">
-        <select id="target-type" onchange="toggleTargetList()">
-            <option value="user">Assign to: Person</option>
-            <option value="location">Assign to: Location</option>
-        </select>
+    <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <strong>Queue (<span id="count">0</span>)</strong>
+            <button onclick="clearBatch()" style="font-size:11px; color:var(--danger); background:none; border:none;">Clear All</button>
+        </div>
+        <div id="scan-list" style="max-height:250px; overflow-y:auto; margin-top:10px; border:1px solid var(--border); border-radius:8px;"></div>
         
-        <label style="font-size: 11px; font-weight: bold; color: var(--secondary); text-transform: uppercase; margin-top: 10px; display: block;">Target Assignment</label>
+        <div id="batch-controls" style="display:none; flex-direction:column; gap:5px; margin-top:10px;">
+            <button class="btn" style="background:var(--primary)" onclick="processBatch('IN')">Check-In All</button>
+            <button class="btn" style="background:var(--danger)" onclick="processBatch('OUT')">Check-Out All</button>
+            <button class="btn" style="background:var(--warning); color:#222" onclick="processBatch('AUDIT')">Official Audit</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <select id="target-type" onchange="toggleTargetList()"><option value="user">Assign to: Person</option><option value="location">Assign to: Location</option></select>
         <input type="text" id="assign-search" placeholder="Filter target of assignment..." onkeyup="filterAssignList()">
         <select id="target-id" onchange="updateUI()"></select>
-        
-        <label style="font-size: 11px; font-weight: bold; color: var(--secondary); text-transform: uppercase; margin-top: 10px; display: block;">Status Label</label>
         <select id="status-id"></select>
-    <label style="font-size: 11px; font-weight: bold; color: var(--secondary); text-transform: uppercase; margin-top: 10px; display: block;">Append Note to Batch</label>
-    <textarea id="batch-note" placeholder="Enter note for all items..." style="width: 100%; background: var(--card-bg); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 10px; font-size: 14px; box-sizing: border-box; font-family: inherit; resize: vertical;"></textarea>
     </div>
 
 </div>
