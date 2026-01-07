@@ -255,14 +255,25 @@
                 document.getElementById('loading-msg').innerText = `Checking In: ${asset.tag}`;
                 await proxyRequest(`/hardware/${asset.id}/checkin`, "POST", { status_id: sId }); 
 
-            } else if (type === 'AUDIT') { 
-                document.getElementById('loading-msg').innerText = `Auditing: ${asset.tag}`;
-                await proxyRequest(`/hardware/${asset.id}/audit`, "POST", { 
-                    asset_tag: asset.tag, 
-                    location_id: targetId,
-                    note: "Mobile Audit Scan"
-                }); 
-            }
+} else if (type === 'AUDIT') { 
+    document.getElementById('loading-msg').innerText = `Auditing: ${asset.tag}`;
+    
+    // Generate today's date and next year's date in YYYY-MM-DD format
+    const today = new Date().toISOString().split('T')[0];
+    const nextYearDate = new Date();
+    nextYearDate.setFullYear(nextYearDate.getFullYear() + 1);
+    const nextAudit = nextYearDate.toISOString().split('T')[0];
+
+    const auditPayload = { 
+        asset_tag: asset.tag, 
+        location_id: targetId,
+        note: "Mobile Audit Scan via SnipeScan Pro",
+        last_audit_date: today,      // The date the audit happened
+        next_audit_date: nextAudit   // When the next one is due
+    };
+
+    await proxyRequest(`/hardware/${asset.id}/audit`, "POST", auditPayload); 
+}
             
             // Small heartbeat delay between different assets in the loop
             await new Promise(resolve => setTimeout(resolve, 200));
