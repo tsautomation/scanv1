@@ -304,11 +304,25 @@
     function updateUI() {
         const sel = document.getElementById('target-id');
         const target = sel.options[sel.selectedIndex]?.text || "...";
-        document.getElementById('scan-list').innerHTML = scannedQueue.map((item, idx) => `
+        
+        // We use [...scannedQueue].reverse() so we don't mess up the actual array order, 
+        // just the way it looks on the screen.
+        const displayQueue = [...scannedQueue].reverse();
+
+        document.getElementById('scan-list').innerHTML = displayQueue.map((item, idx) => {
+            // We need to find the original index for the delete button to work
+            const originalIdx = scannedQueue.findIndex(q => q.tag === item.tag);
+            
+            return `
             <div class="scan-item">
-                <div class="tag-info"><span class="tag-main">${item.tag}</span><span class="tag-subtext">${item.name} ➔ ${target}</span></div>
-                <button onclick="removeFromQueue(${idx})" style="border:none; background:none; color:var(--danger); font-size:24px;">&times;</button>
-            </div>`).join('');
+                <div class="tag-info">
+                    <span class="tag-main">${item.tag}</span>
+                    <span class="tag-subtext">${item.name} ➔ ${target}</span>
+                </div>
+                <button onclick="removeFromQueue(${originalIdx})" style="border:none; background:none; color:var(--danger); font-size:24px;">&times;</button>
+            </div>`;
+        }).join('');
+
         document.getElementById('batch-controls').style.display = scannedQueue.length > 0 ? 'flex' : 'none';
         document.getElementById('count').innerText = scannedQueue.length;
     }
