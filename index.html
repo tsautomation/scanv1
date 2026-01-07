@@ -249,40 +249,44 @@
             for (const asset of scannedQueue) {
                 const finalNote = bNote ? bNote : "Updated via SnipeScan Pro";
 
+                // We send both 'note' and 'notes' to cover all API versions/endpoints
+                const payload = { 
+                    status_id: sId, 
+                    note: finalNote, 
+                    notes: finalNote 
+                };
+
                 if (type === 'OUT') { 
-                    document.getElementById('loading-msg').innerText = `Checking In: ${asset.tag}`;
-                    await proxyRequest(`/hardware/${asset.id}/checkin`, "POST", { status_id: sId, notes: "Auto-checkin before re-assignment" });
-                    await new Promise(r => setTimeout(r, 500));
                     document.getElementById('loading-msg').innerText = `Checking Out: ${asset.tag}`;
+                    // 1. Force Check-in
+                    await proxyRequest(`/hardware/${asset.id}/checkin`, "POST", { status_id: sId, note: "Resetting for checkout" });
+                    await new Promise(r => setTimeout(r, 500));
+                    // 2. Check-out
                     await proxyRequest(`/hardware/${asset.id}/checkout`, "POST", { 
                         checkout_to_type: tType, 
                         assigned_user: targetId, 
                         assigned_location: targetId, 
-                        status_id: sId, 
-                        notes: finalNote 
+                        ...payload // includes status_id, note, and notes
                     });
 
                 } else if (type === 'IN') { 
                     document.getElementById('loading-msg').innerText = `Checking In: ${asset.tag}`;
-                    await proxyRequest(`/hardware/${asset.id}/checkin`, "POST", { status_id: sId, notes: finalNote }); 
+                    await proxyRequest(`/hardware/${asset.id}/checkin`, "POST", payload); 
 
                 } else if (type === 'AUDIT') { 
                     document.getElementById('loading-msg').innerText = `Auditing: ${asset.tag}`;
-                    const today = new Date().toISOString().split('T')[0];
-                    const nextYearDate = new Date();
-                    nextYearDate.setFullYear(nextYearDate.getFullYear() + 1);
-                    const nextAudit = nextYearDate.toISOString().split('T')[0];
-
                     await proxyRequest(`/hardware/${asset.id}/audit`, "POST", { 
-                        asset_tag: asset.tag, location_id: parseInt(targetId), notes: finalNote, next_audit_date: nextAudit
+                        asset_tag: asset.tag, 
+                        location_id: parseInt(targetId), 
+                        note: finalNote,
+                        notes: finalNote
                     }); 
-                    await proxyRequest(`/hardware/${asset.id}`, "PATCH", { last_audit_date: today, next_audit_date: nextAudit, notes: finalNote });
-
-                } else if (type === 'NOTE_ONLY') {
-                    document.getElementById('loading-msg').innerText = `Updating Note: ${asset.tag}`;
-                    // IMPORTANT: Snipe-IT API uses 'notes' for PATCH updates
-                    await proxyRequest(`/hardware/${asset.id}`, "PATCH", { notes: finalNote });
                 }
+
+                // 3. PERSISTENT UPDATE: This makes it show on the "General Info" tab
+                // PATCH on /hardware/{id} strictly uses 'notes'
+                await proxyRequest(`/hardware/${asset.id}`, "PATCH", { notes: finalNote });
+                
                 await new Promise(r => setTimeout(r, 200));
             }
 
@@ -293,11 +297,11 @@
                 details: scannedQueue.map(a => `${a.tag} (${a.name}) ➔ ${type === 'NOTE_ONLY' ? 'Note Updated' : targetName}`)
             });
 
-            alert("Batch Process Complete!");
+            alert("Success! History and Asset notes updated.");
             scannedQueue = []; 
             document.getElementById('batch-note').value = '';
             updateUI();
-        } catch (e) { alert("Process encountered an error."); } finally { hideLoading(); }
+        } catch (e) { alert("An error occurred. Check script logs."); } finally { hideLoading(); }
     }
 
     function updateUI() {
