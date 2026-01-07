@@ -257,11 +257,26 @@
 
             } else if (type === 'AUDIT') { 
                 document.getElementById('loading-msg').innerText = `Auditing: ${asset.tag}`;
+                
+                // v6 requirement: Date must be YYYY-MM-DD
+                const today = new Date().toISOString().split('T')[0];
+                const nextYearDate = new Date();
+                nextYearDate.setFullYear(nextYearDate.getFullYear() + 1);
+                const nextAudit = nextYearDate.toISOString().split('T')[0];
+
+                // Perform the formal Audit
                 await proxyRequest(`/hardware/${asset.id}/audit`, "POST", { 
                     asset_tag: asset.tag, 
-                    location_id: targetId,
-                    note: "Mobile Audit Scan"
+                    location_id: parseInt(targetId),
+                    note: "Mobile Audit via SnipeScan",
+                    next_audit_date: nextAudit
                 }); 
+
+                // Forced Meta-Update for the "Last Audit" column visibility
+                await proxyRequest(`/hardware/${asset.id}`, "PATCH", {
+                    last_audit_date: today,
+                    next_audit_date: nextAudit
+                });
             }
             
             // Small heartbeat delay between different assets in the loop
