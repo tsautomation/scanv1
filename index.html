@@ -229,7 +229,7 @@ function displayInfo(asset, tag) {
 
         // Adding a 'View in Snipe-IT' button at the bottom
         const linkHtml = asset.id ? `
-            <a href="https://YOUR_SNIPE_INSTANCE_URL/hardware/${asset.id}" target="_blank" class="btn" style="background:var(--primary); text-decoration:none; margin-top:10px; display:block;">🌐 View in Snipe-IT</a>
+            <a href="https://snipe.thecitylinkgroup.com/hardware/${asset.id}" target="_blank" class="btn" style="background:var(--primary); text-decoration:none; margin-top:10px; display:block;">🌐 View in Snipe-IT</a>
         ` : '';
 
         document.getElementById('info-fields').innerHTML = fieldsHtml + linkHtml;
