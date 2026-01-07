@@ -106,9 +106,9 @@
         <div id="scan-list" style="max-height:250px; overflow-y:auto; margin-top:10px; border:1px solid var(--border); border-radius:8px;"></div>
         
         <div id="batch-controls" style="display:none; flex-direction:column; gap:5px; margin-top:10px;">
-            <button class="btn" style="background:var(--primary)" onclick="processBatch('IN')">Check-In All</button>
-            <button class="btn" style="background:var(--danger)" onclick="processBatch('OUT')">Check-Out All</button>
-            <button class="btn" style="background:var(--warning); color:#222" onclick="processBatch('AUDIT')">Official Audit</button>
+            <button class="btn" style="background:var(--primary)" onclick="('IN')">Check-In All</button>
+            <button class="btn" style="background:var(--danger)" onclick="('OUT')">Check-Out All</button>
+            <button class="btn" style="background:var(--warning); color:#222" onclick="('AUDIT')">Official Audit</button>
         </div>
     </div>
 </div>
@@ -258,30 +258,29 @@
 } else if (type === 'AUDIT') { 
     document.getElementById('loading-msg').innerText = `Auditing: ${asset.tag}`;
     
-    // Calculate dates in YYYY-MM-DD format
     const today = new Date().toISOString().split('T')[0];
-    const nextYearDate = new Date();
-    nextYearDate.setFullYear(nextYearDate.getFullYear() + 1);
-    const nextAudit = nextYearDate.toISOString().split('T')[0];
+    const nextYear = new Date();
+    nextYear.setFullYear(nextYear.getFullYear() + 1);
+    const nextAuditDate = nextYear.toISOString().split('T')[0];
 
-    // 1. Submit the Formal Audit (creates the History entry)
+    // v6.0.14 Payload Requirements
     const auditPayload = { 
-        asset_tag: asset.tag, 
-        location_id: targetId,
-        note: "Mobile Audit Scan via SnipeScan Pro",
+        asset_tag: String(asset.tag),              // Must be string
+        location_id: parseInt(targetId) || null,   // Force to Integer or null
+        note: "Mobile Audit - v6 API",
         last_audit_date: today,
-        next_audit_date: nextAudit
+        next_audit_date: nextAuditDate
     };
+
+    // Try the direct Audit endpoint
     await proxyRequest(`/hardware/${asset.id}/audit`, "POST", auditPayload);
 
-    // 2. Small delay to let the database breathe
-    await new Promise(resolve => setTimeout(resolve, 300));
-
-    // 3. Update the Asset record directly (updates the "Last Audit" column in Snipe-IT)
-    // We use a PATCH request to specifically update fields without checking out/in
+    // IMPORTANT for v6: Manually push the date to the asset record
+    // This ensures it shows up in the 'Last Audit' column in your main list
     await proxyRequest(`/hardware/${asset.id}`, "PATCH", {
         last_audit_date: today,
-        next_audit_date: nextAudit
+        next_audit_date: nextAuditDate,
+        location_id: parseInt(targetId) || null
     });
 }
             
