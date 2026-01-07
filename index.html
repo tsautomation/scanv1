@@ -270,20 +270,39 @@
 
                 if (type === 'OUT') { 
                     document.getElementById('loading-msg').innerText = `Checking Out: ${asset.tag}`;
+                    
+                    // 1. Force Check-in to clear previous assignment
                     await proxyRequest(`/hardware/${asset.id}/checkin`, "POST", { status_id: sId, note: "Resetting for checkout" });
-                    await new Promise(r => setTimeout(r, 500));
-                    await proxyRequest(`/hardware/${asset.id}/checkout`, { checkout_to_type: tType, assigned_user: targetId, assigned_location: targetId, ...payload });
+                    
+                    // Small delay to allow Snipe-IT database to settle
+                    await new Promise(r => setTimeout(r, 600));
+                    
+                    // 2. Perform actual Check-out (Added "POST" here - this was the missing piece)
+                    await proxyRequest(`/hardware/${asset.id}/checkout`, "POST", { 
+                        checkout_to_type: tType, 
+                        assigned_user: targetId, 
+                        assigned_location: targetId, 
+                        ...payload 
+                    });
+
                 } else if (type === 'IN') { 
                     document.getElementById('loading-msg').innerText = `Checking In: ${asset.tag}`;
                     await proxyRequest(`/hardware/${asset.id}/checkin`, "POST", payload); 
+
                 } else if (type === 'AUDIT') { 
                     document.getElementById('loading-msg').innerText = `Auditing: ${asset.tag}`;
-                    await proxyRequest(`/hardware/${asset.id}/audit`, "POST", { asset_tag: asset.tag, location_id: parseInt(targetId), note: finalNote, notes: finalNote }); 
+                    await proxyRequest(`/hardware/${asset.id}/audit`, "POST", { 
+                        asset_tag: asset.tag, 
+                        location_id: parseInt(targetId), 
+                        note: finalNote, 
+                        notes: finalNote 
+                    }); 
                 }
 
-                // Force note to the Asset main profile
+                // 3. PERSISTENT UPDATE: Sync the note to the main Asset Profile
                 await proxyRequest(`/hardware/${asset.id}`, "PATCH", { notes: finalNote });
-                await new Promise(r => setTimeout(r, 200));
+                
+                await new Promise(r => setTimeout(r, 300));
             }
 
             await proxyRequest('email-log', 'POST', {
@@ -291,9 +310,12 @@
                 details: scannedQueue.map(a => `${a.tag} (${a.name}) ➔ ${type === 'NOTE_ONLY' ? 'Note Updated' : targetName}`)
             });
 
-            alert("Success!");
+            alert("Batch Processed Successfully!");
             clearBatch();
-        } catch (e) { alert("An error occurred."); } finally { hideLoading(); }
+        } catch (e) { 
+            console.error(e);
+            alert("An error occurred during processing. Please check the console."); 
+        } finally { hideLoading(); }
     }
 
     function updateUI() {
