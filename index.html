@@ -106,9 +106,9 @@
         <div id="scan-list" style="max-height:250px; overflow-y:auto; margin-top:10px; border:1px solid var(--border); border-radius:8px;"></div>
         
         <div id="batch-controls" style="display:none; flex-direction:column; gap:5px; margin-top:10px;">
-            <button class="btn" style="background:var(--primary)" onclick="('IN')">Check-In All</button>
-            <button class="btn" style="background:var(--danger)" onclick="('OUT')">Check-Out All</button>
-            <button class="btn" style="background:var(--warning); color:#222" onclick="('AUDIT')">Official Audit</button>
+            <button class="btn" style="background:var(--primary)" onclick="processBatch('IN')">Check-In All</button>
+            <button class="btn" style="background:var(--danger)" onclick="processBatch('OUT')">Check-Out All</button>
+            <button class="btn" style="background:var(--warning); color:#222" onclick="processBatch('AUDIT')">Official Audit</button>
         </div>
     </div>
 </div>
@@ -217,7 +217,7 @@
         } finally { setTimeout(() => { isScanningLocked = false; }, 1000); }
     }
 
-async function processBatch(type) {
+    async function processBatch(type) {
     if (!scannedQueue.length) return;
     
     const targetId = document.getElementById('target-id').value;
