@@ -198,21 +198,41 @@
         addAssetToQueue(cleanTag);
     }
 
-    function displayInfo(asset, tag) {
+function displayInfo(asset, tag) {
         if (!asset) { alert("Not found"); closeInfoModal(); return; }
+        
+        // Extracting base URL from the API response or setting a placeholder
+        // Usually, Snipe-IT returns 'https://yourinstance.com/hardware/123' in the API
+        const assetUrl = asset.id ? `${PROXY_URL.split('/macros')[0].replace('script.google.com', 'your-snipe-url.com')}/hardware/${asset.id}` : "#";
+
         const rows = [
             {l: "Asset Tag", v: asset.asset_tag},
             {l: "Asset Name", v: asset.name},
+            {l: "Category", v: asset.category?.name || (asset.model?.category?.name)},
             {l: "Model", v: asset.model?.name},
             {l: "Status", v: asset.status_label?.name},
             {l: "Location", v: asset.location?.name || asset.default_location?.name},
             {l: "Assigned To", v: asset.assigned_to?.name || "Unassigned"},
+            {l: "Purchase Date", v: asset.purchase_date?.date || asset.purchase_date},
+            {l: "Order Number", v: asset.order_number},
+            {l: "Warranty", v: asset.warranty_months ? `${asset.warranty_months} Months` : null},
             {l: "Serial", v: asset.serial},
             {l: "Last Audit", v: asset.last_audit_date?.formatted || 'Never'}
         ];
-        document.getElementById('info-fields').innerHTML = rows.map(r => `
-            <div class="info-row"><span class="info-label">${r.l}</span><span class="info-val">${r.v || 'N/A'}</span></div>
+        
+        const fieldsHtml = rows.map(r => `
+            <div class="info-row">
+                <span class="info-label">${r.l}</span>
+                <span class="info-val">${r.v || 'N/A'}</span>
+            </div>
         `).join('');
+
+        // Adding a 'View in Snipe-IT' button at the bottom
+        const linkHtml = asset.id ? `
+            <a href="https://YOUR_SNIPE_INSTANCE_URL/hardware/${asset.id}" target="_blank" class="btn" style="background:var(--primary); text-decoration:none; margin-top:10px; display:block;">🌐 View in Snipe-IT</a>
+        ` : '';
+
+        document.getElementById('info-fields').innerHTML = fieldsHtml + linkHtml;
         document.getElementById('info-modal').style.display = 'flex';
     }
 
