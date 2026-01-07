@@ -66,7 +66,7 @@
 
 <div class="container">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-        <h2 style="margin: 0;">📦 SnipeScan Pro V2.1</h2>
+        <h2 style="margin: 0;">📦 SnipeScan Pro V2.2</h2>
         <button onclick="toggleDarkMode()" style="background:none; border:none; font-size: 20px;">🌙</button>
     </div>
     
@@ -130,7 +130,7 @@
 </div>
 
 <script>
-    const PROXY_URL = "https://script.google.com/macros/s/AKfycbxU-wLShftUBO0joFRbtR1nkn6SQzRhQDP_Pcd7MV0HLlZJIt0jJMaaoC6hpZC_IaU97w/exec"; 
+    const PROXY_URL = "https://script.google.com/macros/s/AKfycbxg-J-zmEe2Bylbempfmhf_Jcd0f9wg3E1iLql5zwM9pPHiD4Wg456BvcB7t2x5LDkemQ/exec"; 
     let scannedQueue = [], users = [], locations = [], statusLabels = [];
     let isScanningLocked = false, infoMode = false, rangeMode = false;
     let lastBeepTime = 0;
@@ -198,20 +198,29 @@
         addAssetToQueue(cleanTag);
     }
 
-    async function addAssetToQueue(tag) {
-        isScanningLocked = true;
-        document.getElementById('status').innerText = `Adding ${tag}...`;
-        try {
-            const res = await proxyRequest(`/hardware/bytag/${tag}`);
-            const asset = res.id ? res : (res.rows?.[0] || null);
-            if (asset) {
-                scannedQueue.push({ id: asset.id, tag: tag, name: asset.model?.name || "Unknown Model" });
-                updateUI();
-                document.getElementById('status').innerText = `✅ Added ${tag}`;
-            } else { alert(`Asset ${tag} not found`); }
-        } catch (e) { alert("Error adding asset"); }
-        setTimeout(() => { isScanningLocked = false; document.getElementById('status').innerText = "Ready"; }, 1000);
+async function addAssetToQueue(tag) {
+    isScanningLocked = true;
+    document.getElementById('status').innerText = `Adding ${tag}...`;
+    try {
+        // CORRECTED: Call the API to find the asset by tag
+        const res = await proxyRequest(`/hardware/bytag/${tag}`);
+        const asset = res.id ? res : (res.rows?.[0] || null);
+        
+        if (asset) {
+            scannedQueue.push({ id: asset.id, tag: tag, name: asset.model?.name || "Unknown Model" });
+            updateUI();
+            document.getElementById('status').innerText = `✅ Added ${tag}`;
+        } else { 
+            alert(`Asset ${tag} not found`); 
+        }
+    } catch (e) { 
+        alert("Error adding asset"); 
     }
+    setTimeout(() => { 
+        isScanningLocked = false; 
+        document.getElementById('status').innerText = "Ready"; 
+    }, 1000);
+}
 
     function displayInfo(asset, tag) {
         if (!asset) { alert("Not found"); isScanningLocked = false; return; }
@@ -357,22 +366,74 @@
         document.getElementById('camera-input').click();
     }
 
-    async function handleFileUpload(input) {
-        if (!input.files || !input.files[0]) return;
-        const file = input.files[0];
-        showLoading("Uploading photo...");
-        try {
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                const base64Data = e.target.result.split(',')[1];
-                const res = await proxyRequest(`/hardware/${currentPhotoAssetId}/uploads`, "POST", base64Data, true, file.type, `photo_${Date.now()}.jpg`);
-                alert(res.status === "success" || res.id ? "✅ Uploaded!" : "❌ Failed");
+async function handleFileUpload(input) {
+    if (!input.files || !input.files[0]) return;
+    const file = input.files[0];
+    showLoading("Compressing & Uploading...");
+
+    try {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            const img = new Image();
+            img.onload = async () => {
+                // Set max dimensions
+                const MAX_WIDTH = 1200;
+                const MAX_HEIGHT = 1200;
+                let width = img.width;
+                let height = img.height;
+
+                // Calculate aspect ratio
+                if (width > height) {
+                    if (width > MAX_WIDTH) {
+                        height *= MAX_WIDTH / width;
+                        width = MAX_WIDTH;
+                    }
+                } else {
+                    if (height > MAX_HEIGHT) {
+                        width *= MAX_HEIGHT / height;
+                        height = MAX_HEIGHT;
+                    }
+                }
+
+                // Create Canvas
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+
+                // Convert to Base64 (0.7 is 70% quality)
+                const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
+
+                // Send to Proxy
+                const res = await proxyRequest(
+                    `/hardware/${currentPhotoAssetId}/upload`, 
+                    "POST", 
+                    compressedBase64, 
+                    true, 
+                    "image/jpeg", 
+                    `photo_${Date.now()}.jpg`
+                );
+
+                console.log("Snipe Response:", res);
+
+                if (res && (res.status === "success" || res.messages || res.id)) {
+                    alert("✅ Uploaded!");
+                } else {
+                    alert("❌ Failed: " + (res.messages || "Check console"));
+                }
+                
                 hideLoading();
                 input.value = '';
             };
-            reader.readAsDataURL(file);
-        } catch (err) { alert("Error uploading"); hideLoading(); }
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    } catch (err) {
+        alert("Error: " + err.toString());
+        hideLoading();
     }
+}
 
 function toggleSection(id) {
     const el = document.getElementById(id);
